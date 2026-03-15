@@ -24,7 +24,7 @@ func Start() error {
 
 		fmt.Printf("Starting scan of: %s\n", startPath)
 		startTime := time.Now()
-		err = orchestrateScan(startPath)
+		err = orchestrateScan(startPath, &config)
 		if err != nil {
 			return err
 		}

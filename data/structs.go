@@ -6,9 +6,12 @@ import (
 )
 
 type Config struct {
-	LargeSyncPath      string `json:"LargeSyncPath"`    // defaults to system root directory
-	QuickSyncPath      string `json:"QuickSyncPath"`    // defaults to /home/user/
-	LargeSyncFrequenzy int    `json:"LargeSyncFrequenzy"` // what nth sync loop runs the full sync scan
+	LargeSyncPath      string   `json:"LargeSyncPath"`      // defaults to system root directory
+	QuickSyncPath      string   `json:"QuickSyncPath"`      // defaults to /home/user/
+	LargeSyncFrequenzy int      `json:"LargeSyncFrequenzy"` // what nth sync loop runs the full sync scan
+	WaitBetweenSyncs   int      `json:"WaitBetweenSyncs"`   // defaults to 1 second
+	ExcludedEntries    []string `json:"ExcludedEntries"`    // what files and directories are excluded from being indexed
+	ContentFileTypes   []string `json:"ContentFileTypes"`   // what file types does the index capture the contents for to allow content based searches of the index
 }
 
 type CollectedInfo struct {

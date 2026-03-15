@@ -103,7 +103,6 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 		if err != nil {
 			return fmt.Errorf("could not add entry %s to db write statement: \n%w", entry.FullPath, err)
 		}
-		fmt.Println("added entry successfully:", entry.FullPath)
 	}
 
 	return transaction.Commit()
@@ -163,7 +162,6 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 		if err != nil {
 			return fmt.Errorf("could not add entry %s to db update statement: \n%w", entry.FullPath, err)
 		}
-		fmt.Println("added entry with content successfully:", entry.FullPath)
 	}
 
 	return nil
@@ -215,7 +213,6 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 		if err != nil {
 			return fmt.Errorf("could not add entry %s to db update statement: \n%w", entry.FullPath, err)
 		}
-		fmt.Println("added entry without content successfully:", entry.FullPath)
 	}
 
 	return nil
@@ -259,6 +256,7 @@ func WriteScanRecord(con *sql.DB, theWorks *CollectedInfo) error {
 	if err != nil {
 		return fmt.Errorf("could not write entry to database: %s\n%w", query, err)
 	}
+
 	return nil
 }
 
@@ -268,7 +266,6 @@ func DeleteEntry(con *sql.DB, entryPath string) error {
 	if err != nil {
 		return fmt.Errorf("could not delete entry from database: %s\n%w", query, err)
 	}
-	fmt.Println("Deleted entry successfully:", entryPath)
 
 	return nil
 }

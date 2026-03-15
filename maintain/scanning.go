@@ -6,12 +6,11 @@ import (
 	"path/filepath"
 	"slices"
 	"igloo/data"
-	"igloo/utils"
 	"syscall"
 	"time"
 )
 
-func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, inodeMappedEntries map[uint64]data.InodeHeader) error {
+func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, inodeMappedEntries map[uint64]data.InodeHeader, config *data.Config) error {
 	fileSysEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return fmt.Errorf("failed to list entries in directory: %s\n%w", dirPath, err)
@@ -25,7 +24,7 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, inodeMappedEnt
 			return err
 		}
 
-		if entryStat.IsDir() && slices.Contains(utils.ExcludedEntries, filepath.Base(filePath)) {
+		if entryStat.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(filePath)) {
 			continue
 		}
 

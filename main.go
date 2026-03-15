@@ -3,10 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"igloo/initial"
 	"igloo/maintain"
 	"igloo/setup"
+	"os"
 	"strings"
 )
 
@@ -18,7 +18,7 @@ func main() {
 		arguments := strings.Split(strings.TrimSpace(input), " ")
 		switch arguments[0] {
 		case "test":
-			//test.Main()
+			test()			
 		case "setup":
 			err := setup.Main()
 			if err != nil {

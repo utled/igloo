@@ -8,7 +8,6 @@ import (
 	"regexp"
 	"slices"
 	"igloo/data"
-	"igloo/utils"
 	"syscall"
 	"time"
 )
@@ -46,12 +45,12 @@ func readDir(path string, theWorks *data.CollectedInfo, isRoot bool) {
 	theWorks.Mu.Unlock()
 }
 
-func readFile(filename string, theWorks *data.CollectedInfo) {
+func readFile(filename string, theWorks *data.CollectedInfo, config *data.Config) {
 	entry := data.EntryCollection{}
 
 	contentsRead := false
 
-	if slices.Contains(utils.ContentFiles, filepath.Ext(filename)) {
+	if slices.Contains(config.ContentFileTypes, filepath.Ext(filename)) {
 		contents, err := os.ReadFile(filename)
 		if err != nil {
 			log.Fatal(err)

@@ -21,7 +21,7 @@ const (
 	newDirWorkers         = 20
 )
 
-func orchestrateScan(startPath string) error {
+func orchestrateScan(startPath string, config *data.Config) error {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
 		return err
@@ -65,21 +65,21 @@ func orchestrateScan(startPath string) error {
 
 	scannerWG.Add(entryScanners)
 	for i := 0; i < entryScanners; i += 1 {
-		go scanWorker(scanJobs, readJobs, inodeMappedEntries, &scannerWG)
+		go scanWorker(scanJobs, readJobs, inodeMappedEntries, &scannerWG, config)
 	}
 
 	scannerWG.Add(newDirWorkers)
 	for i := 0; i < newDirWorkers; i += 1 {
-		go newDirWorker(newDirJobs, readJobs, con, &scannerWG)
+		go newDirWorker(newDirJobs, readJobs, con, &scannerWG, config)
 	}
 
 	readerWG.Add(entryReaders)
 	for i := 0; i < entryReaders; i += 1 {
-		go readWorker(readJobs, con, &readerWG)
+		go readWorker(readJobs, con, &readerWG, config)
 	}
 
 	producerWG.Add(1)
-	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, inodeMappedEntries, &producerWG)
+	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, inodeMappedEntries, &producerWG, config)
 
 	producerWG.Wait()
 	close(scanJobs)

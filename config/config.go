@@ -6,13 +6,101 @@ import (
 	"igloo/data"
 	"os"
 	"path/filepath"
+	"slices"
 )
 
+var excludedEntries = []string{
+	"boot",
+	"etc",
+	"root",
+	"bin",
+	"dev",
+	"sys",
+	"proc",
+	".snapshots",
+	".venv",
+	".cargo",
+	".rustup",
+	".git",
+	".cache",
+	".idea",
+}
+
+var entriesToKeep = []string{
+	".igloo",
+	".local",
+	".config",
+}
+
+var contentFileTypes = []string{
+	".txt",
+	".md",
+	".go",
+	".py",
+	".c",
+	".cpp",
+	".c++",
+	".cs",
+	".rs",
+	".kt",
+	".ktm",
+	".kts",
+	".java",
+	".sh",
+	".csv",
+	".css",
+	".lua",
+	".dockerfile",
+	".json",
+	".jsonc",
+	".conf",
+	".js",
+	".ipynb",
+	".sql",
+	".bash",
+	".toml",
+	".yaml",
+	".yml",
+	".xml",
+	".ts",
+	".doc",
+	".docx",
+	".docm",
+	".xlxs",
+	".xlxm",
+	".ods",
+	".odt",
+}
+
+func composeExclusions(homePath string) (exclusions []string, err error) {
+	entries, err := os.ReadDir(homePath)
+	if err != nil {
+		return exclusions, fmt.Errorf("failed to read home directory:%v", err)
+	}
+
+	for _, entry := range entries {
+		if entry.Name()[0] == '.' && !slices.Contains(entriesToKeep, entry.Name()) {
+			exclusions = append(exclusions, entry.Name())
+		}
+	}
+
+	exclusions = append(exclusions, excludedEntries...)
+
+	return exclusions, nil 
+}
+
 func InitializeConfig(homePath string, servicePath string) error {
+	exclusions, err := composeExclusions(homePath)
+	if err != nil {
+		return err
+	}
+
 	defaultConfig := data.Config{
 		LargeSyncPath:      "/",
 		QuickSyncPath:      homePath,
 		LargeSyncFrequenzy: 5,
+		ExcludedEntries: exclusions,
+		ContentFileTypes: contentFileTypes,
 	}
 
 	defaultConfigJSON, _ := json.MarshalIndent(defaultConfig, "", "  ")

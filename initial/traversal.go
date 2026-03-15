@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"slices"
 	"igloo/data"
-	"igloo/utils"
 	"sync"
 )
 
@@ -17,6 +16,7 @@ func traverseDirectory(
 	fileJobs chan<- string,
 	wg *sync.WaitGroup,
 	theWorks *data.CollectedInfo,
+	config *data.Config,
 ) {
 	defer wg.Done()
 
@@ -42,7 +42,7 @@ func traverseDirectory(
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(utils.ExcludedEntries, filepath.Base(path)) {
+		if d.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
 			return filepath.SkipDir
 		}
 

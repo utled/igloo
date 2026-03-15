@@ -3,19 +3,18 @@ package maintain
 import (
 	"database/sql"
 	"fmt"
+	"igloo/data"
 	"io/fs"
 	"log"
 	"os"
 	"path/filepath"
 	"slices"
-	"igloo/data"
-	"igloo/utils"
 	"sync"
 	"syscall"
 	"time"
 )
 
-func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, con *sql.DB) error {
+func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data.Config, con *sql.DB) error {
 	fmt.Println("Traversing new dir: ", startPath)
 	inodeMappedEntries, err := data.GetInodeMappedEntries(con)
 	if err != nil {
@@ -26,7 +25,7 @@ func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, con *sql.DB)
 			return err
 		}
 
-		if d.IsDir() && slices.Contains(utils.ExcludedEntries, filepath.Base(path)) {
+		if d.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
 			return filepath.SkipDir
 		}
 
@@ -66,6 +65,7 @@ func traverseDirectories(
 	startPath string,
 	inodeMappedEntries map[uint64]data.InodeHeader,
 	wg *sync.WaitGroup,
+	config *data.Config,
 ) {
 	defer wg.Done()
 
@@ -74,13 +74,13 @@ func traverseDirectories(
 			return err
 		}
 
-		if d.IsDir() && slices.Contains(utils.ExcludedEntries, filepath.Base(path)) {
+		if d.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
 			return filepath.SkipDir
 		}
 
 		entryStat, err := os.Stat(path)
 		if err != nil {
-			return err
+			return nil
 		}
 
 		statT := entryStat.Sys().(*syscall.Stat_t)

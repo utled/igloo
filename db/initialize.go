@@ -38,7 +38,7 @@ func createTables(db *sql.DB) error {
          	indexing_completed bool
          );`,
 		`create table if not exists entries (
-    		inode int not null primary key,
+    		inode int not null unique primary key,
     		path text unique,
     		parent_directory text,
     		name text,

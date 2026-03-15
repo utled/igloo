@@ -46,10 +46,10 @@ func StartInitialScan() {
 	}
 
 	for i := 0; i < fileWorkers; i += 1 {
-		go fileWorker(fileReadJobs, &wg, &theWorks)
+		go fileWorker(fileReadJobs, &wg, &theWorks, &config)
 	}
 
-	go traverseDirectory(config.LargeSyncPath, dirReadJobs, fileReadJobs, &wg, &theWorks)
+	go traverseDirectory(config.LargeSyncPath, dirReadJobs, fileReadJobs, &wg, &theWorks, &config)
 
 	wg.Wait()
 	end := time.Now()

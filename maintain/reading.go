@@ -10,12 +10,11 @@ import (
 	"regexp"
 	"slices"
 	"igloo/data"
-	"igloo/utils"
 	"syscall"
 	"time"
 )
 
-func readEntry(syncJob data.SyncJob, con *sql.DB) {
+func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
 	entryStat, err := os.Stat(syncJob.Path)
 	if err != nil {
 		fmt.Println(err)
@@ -40,7 +39,7 @@ func readEntry(syncJob data.SyncJob, con *sql.DB) {
 	entry.GroupID = statT.Gid
 
 	if !entryStat.IsDir() {
-		if slices.Contains(utils.ContentFiles, filepath.Ext(syncJob.Path)) && syncJob.IsContentChange {
+		if slices.Contains(config.ContentFileTypes, filepath.Ext(syncJob.Path)) && syncJob.IsContentChange {
 			contents, err := os.ReadFile(syncJob.Path)
 			if err != nil {
 				log.Fatal(err)

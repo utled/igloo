@@ -7,25 +7,25 @@ import (
 	"sync"
 )
 
-func scanWorker(scanJobs <-chan data.InodeHeader, readJobs chan<- data.SyncJob, inodeMappedEntries map[uint64]data.InodeHeader, wg *sync.WaitGroup) {
+func scanWorker(scanJobs <-chan data.InodeHeader, readJobs chan<- data.SyncJob, inodeMappedEntries map[uint64]data.InodeHeader, wg *sync.WaitGroup, config *data.Config) {
 	defer wg.Done()
 	for job := range scanJobs {
-		err := scanUpdatedDir(readJobs, job.Path, inodeMappedEntries)
+		err := scanUpdatedDir(readJobs, job.Path, inodeMappedEntries, config)
 		if err != nil {
 			log.Fatal(err)
 		}
 	}
 }
-func readWorker(readJobs <-chan data.SyncJob, con *sql.DB, wg *sync.WaitGroup) {
+func readWorker(readJobs <-chan data.SyncJob, con *sql.DB, wg *sync.WaitGroup, config *data.Config) {
 	defer wg.Done()
 	for job := range readJobs {
-		readEntry(job, con)
+		readEntry(job, config, con)
 	}
 }
-func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, con *sql.DB, wg *sync.WaitGroup) {
+func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, con *sql.DB, wg *sync.WaitGroup, config *data.Config) {
 	defer wg.Done()
 	for path := range newDirJobs {
-		err := traverseNewDir(readJobs, path, con)
+		err := traverseNewDir(readJobs, path, config, con)
 		if err != nil {
 			log.Fatal(err)
 		}

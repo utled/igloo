@@ -13,9 +13,9 @@ func dirWorker(readJobs <-chan string, wg *sync.WaitGroup, theWorks *data.Collec
 	}
 }
 
-func fileWorker(readJobs <-chan string, wg *sync.WaitGroup, theWorks *data.CollectedInfo) {
+func fileWorker(readJobs <-chan string, wg *sync.WaitGroup, theWorks *data.CollectedInfo, config *data.Config) {
 	defer wg.Done()
 	for path := range readJobs {
-		readFile(path, theWorks)
+		readFile(path, theWorks, config)
 	}
 }
