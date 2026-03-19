@@ -29,6 +29,7 @@ type CollectedInfo struct {
 }
 
 type EntryCollection struct {
+	DevID       uint64
 	Inode       uint64
 	FullPath    string
 	ParentDirID string
@@ -61,7 +62,7 @@ type SyncJob struct {
 	IsContentChange bool
 }
 
-type InodeHeader struct {
+type EntryHeader struct {
 	Path               string
 	ModificationTime   time.Time
 	MetaDataChangeTime time.Time

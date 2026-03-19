@@ -10,6 +10,7 @@ import (
 )
 
 var excludedEntries = []string{
+	"mnt",
 	"boot",
 	"etc",
 	"root",
@@ -135,6 +136,12 @@ func GetConfig() (config data.Config, err error) {
 
 	if err = json.Unmarshal(configFile, &config); err != nil {
 		return config, fmt.Errorf("failed to unmarshal config file:%v", err)
+	}
+
+	for _, exclusionEntry := range excludedEntries {
+		if !slices.Contains(config.ExcludedEntries, exclusionEntry) {
+			config.ExcludedEntries = append(config.ExcludedEntries, exclusionEntry)
+		}
 	}
 
 	return config, nil

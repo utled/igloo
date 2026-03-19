@@ -38,8 +38,9 @@ func createTables(db *sql.DB) error {
          	indexing_completed bool
          );`,
 		`create table if not exists entries (
-    		inode int not null unique primary key,
-    		path text unique,
+				dev_id int not null,
+    		inode int not null,
+    		path text not null,
     		parent_directory text,
     		name text,
     		is_dir boolean,
@@ -54,7 +55,8 @@ func createTables(db *sql.DB) error {
     		content_snippet text,
     		full_text text,
     		line_count_total int,
-    		line_count_w_content int
+    		line_count_w_content int,
+				primary key(dev_id, inode, path)
 		) without rowid;`,
 		`create table if not exists tagged_entries (
     		inode int not null primary key,

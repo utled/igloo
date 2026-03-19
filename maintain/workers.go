@@ -7,10 +7,10 @@ import (
 	"sync"
 )
 
-func scanWorker(scanJobs <-chan data.InodeHeader, readJobs chan<- data.SyncJob, inodeMappedEntries map[uint64]data.InodeHeader, wg *sync.WaitGroup, config *data.Config) {
+func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, uniqueMappedEntries map[string]data.EntryHeader, wg *sync.WaitGroup, config *data.Config) {
 	defer wg.Done()
 	for job := range scanJobs {
-		err := scanUpdatedDir(readJobs, job.Path, inodeMappedEntries, config)
+		err := scanUpdatedDir(readJobs, job.Path, uniqueMappedEntries, config)
 		if err != nil {
 			log.Fatal(err)
 		}

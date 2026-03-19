@@ -57,6 +57,7 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 	defer transaction.Rollback()
 
 	statement, err := transaction.Prepare(`insert into entries(
+										dev_id,
                     inode,
                     path,
 					parent_directory,
@@ -74,7 +75,7 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 					full_text,
                     line_count_total,
                     line_count_w_content)
-					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare execution statement for db write:%v", err)
 	}
@@ -82,6 +83,7 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 
 	for _, entry := range entryCollection {
 		_, err := statement.Exec(
+			entry.DevID,
 			entry.Inode,
 			entry.FullPath,
 			entry.ParentDirID,
@@ -115,32 +117,32 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 	}
 	defer transaction.Rollback()
 
-	statement, err := transaction.Prepare(`update entries
-    		  set 
-                  path = ?,
-				  parent_directory = ?,
-				  name = ?,
-				  is_dir = ?,
-				  size = ?,
-				  modification_time = ?,
-				  access_time = ?,
-				  metadata_change_time = ?,
-				  owner_id = ?,
-				  group_id = ?,
-				  extension = ?,
-				  filetype = ?,
-				  content_snippet = ?,
-				  full_text = ?,
-                  line_count_total = ?,
-                  line_count_w_content = ?
-			  where inode = ?`)
+	statement, err := transaction.Prepare(`update entries 
+		set 
+		path = ?,
+		parent_directory = ?,
+		name = ?,
+		is_dir = ?,
+		size = ?,
+		modification_time = ?,
+		access_time = ?,
+		metadata_change_time = ?,
+		owner_id = ?,
+		group_id = ?,
+		extension = ?,
+		filetype = ?,
+		content_snippet = ?,
+		full_text = ?,
+    line_count_total = ?,
+    line_count_w_content = ?
+		where dev_id = ? and inode = ?`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare execution statement for db write:%v", err)
 	}
 	defer statement.Close()
 
 	for _, entry := range entryCollection {
-		_, err := con.Exec(
+		_, err := statement.Exec(
 			entry.FullPath,
 			entry.ParentDirID,
 			entry.Name,
@@ -157,10 +159,11 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 			entry.FullTextIndex,
 			entry.LineCountTotal,
 			entry.LineCountWithContent,
+			entry.DevID,
 			entry.Inode,
 		)
 		if err != nil {
-			return fmt.Errorf("could not add entry %s to db update statement: \n%w", entry.FullPath, err)
+			return fmt.Errorf("(with content) could not add entry %s to db update statement: \n%w", entry.FullPath, err)
 		}
 	}
 
@@ -174,28 +177,28 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 	}
 	defer transaction.Rollback()
 
-	statement, err := transaction.Prepare(`update entries
-    		  set 
-                  path = ?,
-				  parent_directory = ?,
-				  name = ?,
-				  is_dir = ?,
-				  size = ?,
-				  modification_time = ?,
-				  access_time = ?,
-				  metadata_change_time = ?,
-				  owner_id = ?,
-				  group_id = ?,
-				  extension = ?,
-				  filetype = ?
-			  where inode = ?`)
+	statement, err := transaction.Prepare(`update entries 
+		set 
+		path = ?,
+		parent_directory = ?,
+		name = ?,
+		is_dir = ?,
+		size = ?,
+		modification_time = ?,
+		access_time = ?,
+		metadata_change_time = ?,
+		owner_id = ?,
+		group_id = ?,
+		extension = ?,
+		filetype = ?
+		where dev_id = ? and inode = ?`)
 	if err != nil {
 		return fmt.Errorf("failed to prepare execution statement for db write:%v", err)
 	}
 	defer statement.Close()
 
 	for _, entry := range entryCollection {
-		_, err := con.Exec(
+		_, err := statement.Exec(
 			entry.FullPath,
 			entry.ParentDirID,
 			entry.Name,
@@ -208,10 +211,11 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 			entry.GroupID,
 			entry.Extension,
 			entry.FileType,
+			entry.DevID,
 			entry.Inode,
 		)
 		if err != nil {
-			return fmt.Errorf("could not add entry %s to db update statement: \n%w", entry.FullPath, err)
+			return fmt.Errorf("(without content) could not add entry %s to db update statement: \n%w", entry.FullPath, err)
 		}
 	}
 

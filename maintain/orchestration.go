@@ -39,13 +39,13 @@ func orchestrateScan(startPath string, config *data.Config) error {
 		}
 	}(con)
 
-	inodeMappedEntries, err := data.GetInodeMappedEntries(con)
+	uniqueMappedEntries, err := data.GetUniqueMappedEntries(con)
 	if err != nil {
 		fmt.Println(err)
 	}
 
 	deletionJobs := make(chan string, deletionJobBufferSize)
-	scanJobs := make(chan data.InodeHeader, scanJobBufferSize)
+	scanJobs := make(chan data.EntryHeader, scanJobBufferSize)
 	newDirJobs := make(chan string, newDirJobBufferSize)
 	readJobs := make(chan data.SyncJob, readJobBufferSize)
 
@@ -61,11 +61,11 @@ func orchestrateScan(startPath string, config *data.Config) error {
 	}
 
 	deletionProdWG.Add(1)
-	traverseIndexedEntries(deletionJobs, inodeMappedEntries, &deletionProdWG)
+	traverseIndexedEntries(deletionJobs, uniqueMappedEntries, &deletionProdWG)
 
 	scannerWG.Add(entryScanners)
 	for i := 0; i < entryScanners; i += 1 {
-		go scanWorker(scanJobs, readJobs, inodeMappedEntries, &scannerWG, config)
+		go scanWorker(scanJobs, readJobs, uniqueMappedEntries, &scannerWG, config)
 	}
 
 	scannerWG.Add(newDirWorkers)
@@ -79,7 +79,7 @@ func orchestrateScan(startPath string, config *data.Config) error {
 	}
 
 	producerWG.Add(1)
-	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, inodeMappedEntries, &producerWG, config)
+	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, uniqueMappedEntries, &producerWG, config)
 
 	producerWG.Wait()
 	close(scanJobs)

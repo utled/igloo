@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -16,7 +17,7 @@ import (
 
 func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data.Config, con *sql.DB) error {
 	fmt.Println("Traversing new dir: ", startPath)
-	inodeMappedEntries, err := data.GetInodeMappedEntries(con)
+	uniqueMappedEntries, err := data.GetUniqueMappedEntries(con)
 	if err != nil {
 		return err
 	}
@@ -36,7 +37,8 @@ func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data
 
 		var syncJob data.SyncJob
 		entryStatT := entryStat.Sys().(*syscall.Stat_t)
-		if inode, ok := inodeMappedEntries[entryStatT.Ino]; ok {
+		uniqueKey := strconv.Itoa(int(entryStatT.Dev)) + strconv.Itoa(int(entryStatT.Ino)) + path
+		if inode, ok := uniqueMappedEntries[uniqueKey]; ok {
 			entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)
 			indexedMtim := inode.ModificationTime
 			if entryStat.IsDir() || entryMtim.Equal(indexedMtim) {
@@ -54,16 +56,19 @@ func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data
 		readJobs <- syncJob
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed to traverse new directory:%v", err)
+	}
 
 	return nil
 }
 
 func traverseDirectories(
-	scanJobs chan<- data.InodeHeader,
+	scanJobs chan<- data.EntryHeader,
 	newDirJobs chan<- string,
 	readJobs chan<- data.SyncJob,
 	startPath string,
-	inodeMappedEntries map[uint64]data.InodeHeader,
+	uniqueMappedEntries map[string]data.EntryHeader,
 	wg *sync.WaitGroup,
 	config *data.Config,
 ) {
@@ -84,13 +89,13 @@ func traverseDirectories(
 		}
 
 		statT := entryStat.Sys().(*syscall.Stat_t)
-
+		uniqueKey := strconv.Itoa(int(statT.Dev)) + strconv.Itoa(int(statT.Ino)) + path
 		if d.IsDir() {
-			if _, ok := inodeMappedEntries[statT.Ino]; !ok {
+			if _, ok := uniqueMappedEntries[uniqueKey]; !ok {
 				newDirJobs <- path
 			} else {
-				for inode, values := range inodeMappedEntries {
-					if inode != statT.Ino {
+				for key, values := range uniqueMappedEntries {
+					if key != uniqueKey {
 						continue
 					}
 					mTim := time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)

@@ -30,6 +30,7 @@ func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
 
 	statT := entryStat.Sys().(*syscall.Stat_t)
 
+	entry.DevID = statT.Dev
 	entry.Inode = statT.Ino
 	entry.ModificationTime = time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
 	entry.AccessTime = time.Unix(statT.Atim.Sec, statT.Atim.Nsec)
@@ -80,12 +81,12 @@ func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
 	if syncJob.IsContentChange {
 		err := data.UpdateEntriesWithContent(con, entryCollection)
 		if err != nil {
-			fmt.Println("error updating: ", entry.FullPath, err)
+			fmt.Println(err)
 		}
 		return
 	}
 	err = data.UpdateEntriesWithoutContent(con, entryCollection)
 	if err != nil {
-		fmt.Println("error updating: ", entry.FullPath, err)
+		fmt.Println(err)
 	}
 }

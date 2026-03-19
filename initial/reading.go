@@ -29,6 +29,7 @@ func readDir(path string, theWorks *data.CollectedInfo, isRoot bool) {
 	entry.Size = dirStat.Size()
 
 	statT := dirStat.Sys().(*syscall.Stat_t)
+	entry.DevID = statT.Dev
 	entry.Inode = statT.Ino
 	entry.ModificationTime = time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
 	entry.AccessTime = time.Unix(statT.Atim.Sec, statT.Atim.Nsec)
