@@ -17,7 +17,7 @@ import (
 
 func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data.Config, con *sql.DB) error {
 	fmt.Println("Traversing new dir: ", startPath)
-	uniqueMappedEntries, err := data.GetUniqueMappedEntries(con)
+	uniqueIndexedEntries, err := data.GetUniqueIndexedEntries(con)
 	if err != nil {
 		return err
 	}
@@ -38,7 +38,7 @@ func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data
 		var syncJob data.SyncJob
 		entryStatT := entryStat.Sys().(*syscall.Stat_t)
 		uniqueKey := strconv.Itoa(int(entryStatT.Dev)) + strconv.Itoa(int(entryStatT.Ino)) + path
-		if inode, ok := uniqueMappedEntries[uniqueKey]; ok {
+		if inode, ok := uniqueIndexedEntries[uniqueKey]; ok {
 			entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)
 			indexedMtim := inode.ModificationTime
 			if entryStat.IsDir() || entryMtim.Equal(indexedMtim) {
@@ -68,7 +68,7 @@ func traverseDirectories(
 	newDirJobs chan<- string,
 	readJobs chan<- data.SyncJob,
 	startPath string,
-	uniqueMappedEntries map[string]data.EntryHeader,
+	uniqueIndexedEntries map[string]data.EntryHeader,
 	wg *sync.WaitGroup,
 	config *data.Config,
 ) {
@@ -91,20 +91,15 @@ func traverseDirectories(
 		statT := entryStat.Sys().(*syscall.Stat_t)
 		uniqueKey := strconv.Itoa(int(statT.Dev)) + strconv.Itoa(int(statT.Ino)) + path
 		if d.IsDir() {
-			if _, ok := uniqueMappedEntries[uniqueKey]; !ok {
+			if indexedEntry, ok := uniqueIndexedEntries[uniqueKey]; !ok {
 				newDirJobs <- path
 			} else {
-				for key, values := range uniqueMappedEntries {
-					if key != uniqueKey {
-						continue
-					}
-					mTim := time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
-					cTim := time.Unix(statT.Ctim.Sec, statT.Ctim.Nsec)
-					if !values.ModificationTime.Equal(mTim) || !values.MetaDataChangeTime.Equal(cTim) {
-						readJobs <- data.SyncJob{Path: path, IsIndexed: true, IsContentChange: false}
-						scanJobs <- values
-						continue
-					}
+				mTim := time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
+				cTim := time.Unix(statT.Ctim.Sec, statT.Ctim.Nsec)
+				if !indexedEntry.ModificationTime.Equal(mTim) || !indexedEntry.MetaDataChangeTime.Equal(cTim) {
+					fmt.Println("created a readJob and a scanJob")
+					readJobs <- data.SyncJob{Path: path, IsIndexed: true, IsContentChange: false}
+					scanJobs <- indexedEntry
 				}
 			}
 		}

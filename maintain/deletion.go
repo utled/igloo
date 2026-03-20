@@ -19,11 +19,11 @@ func checkDelete(entryPath string, con *sql.DB) error {
 	return nil
 }
 
-func traverseIndexedEntries(deletionJobs chan<- string, uniqueMappedEntries map[string]data.EntryHeader, wg *sync.WaitGroup) error {
+func traverseIndexedEntries(deletionJobs chan<- string, uniqueIndexedEntries map[string]data.EntryHeader, wg *sync.WaitGroup) error {
 	defer wg.Done()
 	defer close(deletionJobs)
 
-	for _, values := range uniqueMappedEntries {
+	for _, values := range uniqueIndexedEntries {
 		deletionJobs <- values.Path
 	}
 	return nil
