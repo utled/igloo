@@ -5,17 +5,17 @@ import (
 	"sync"
 )
 
-func dirWorker(readJobs <-chan string, wg *sync.WaitGroup, theWorks *data.CollectedInfo) {
+func dirWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data.CollectedInfo) {
 	defer wg.Done()
 
-	for path := range readJobs {
-		readDir(path, theWorks, false)
+	for job := range readJobs {
+		readDir(job.Path, job.Stat, theWorks, false)
 	}
 }
 
-func fileWorker(readJobs <-chan string, wg *sync.WaitGroup, theWorks *data.CollectedInfo, config *data.Config) {
+func fileWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data.CollectedInfo, config *data.Config) {
 	defer wg.Done()
-	for path := range readJobs {
-		readFile(path, theWorks, config)
+	for job := range readJobs {
+		readFile(job.Path, job.Stat, theWorks, config)
 	}
 }

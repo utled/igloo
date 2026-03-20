@@ -21,8 +21,8 @@ func StartInitialScan() {
 	start := time.Now()
 	theWorks := data.CollectedInfo{}
 
-	fileReadJobs := make(chan string, fileJobBufferSize)
-	dirReadJobs := make(chan string, directoryJobBufferSize)
+	fileReadJobs := make(chan data.ReadJob, fileJobBufferSize)
+	dirReadJobs := make(chan data.ReadJob, directoryJobBufferSize)
 
 	var wg sync.WaitGroup
 	totalWorkers := 1 + directoryWorkers + fileWorkers
@@ -39,7 +39,7 @@ func StartInitialScan() {
 	if !stat.IsDir() {
 		log.Fatal("Starting path must be a directory")
 	}
-	readDir(config.LargeSyncPath, &theWorks, true)
+	readDir(config.LargeSyncPath, &stat, &theWorks, true)
 
 	for i := 0; i < directoryWorkers; i += 1 {
 		go dirWorker(dirReadJobs, &wg, &theWorks)

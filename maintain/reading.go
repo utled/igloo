@@ -10,15 +10,12 @@ import (
 	"regexp"
 	"slices"
 	"igloo/data"
-	"syscall"
 	"time"
 )
 
 func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
-	entryStat, err := os.Stat(syncJob.Path)
-	if err != nil {
-		fmt.Println(err)
-	}
+	entryStat := *syncJob.Stat
+	statT := syncJob.StatT
 
 	entry := data.EntryCollection{}
 
@@ -27,8 +24,6 @@ func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
 	entry.Name = filepath.Base(syncJob.Path)
 	entry.IsDir = entryStat.IsDir()
 	entry.Size = entryStat.Size()
-
-	statT := entryStat.Sys().(*syscall.Stat_t)
 
 	entry.DevID = statT.Dev
 	entry.Inode = statT.Ino
@@ -85,7 +80,7 @@ func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
 		}
 		return
 	}
-	err = data.UpdateEntriesWithoutContent(con, entryCollection)
+	err := data.UpdateEntriesWithoutContent(con, entryCollection)
 	if err != nil {
 		fmt.Println(err)
 	}

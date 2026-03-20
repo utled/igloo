@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, uniqueIndexedEntries map[string]data.EntryHeader, config *data.Config) error {
+func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries map[string]data.EntryHeader, config *data.Config) error {
 	fileSysEntries, err := os.ReadDir(dirPath)
 	if err != nil {
 		return fmt.Errorf("failed to list entries in directory: %s\n%w", dirPath, err)
@@ -25,26 +25,30 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, uniqueIndexedE
 			return err
 		}
 
-		if entryStat.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(filePath)) {
+		isDir := entryStat.IsDir()
+
+		if isDir && slices.Contains(config.ExcludedEntries, filepath.Base(filePath)) {
 			continue
 		}
 
 		entryStatT := entryStat.Sys().(*syscall.Stat_t)
 		entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)
 		uniqueKey := strconv.Itoa(int(entryStatT.Dev)) + strconv.Itoa(int(entryStatT.Ino)) + filePath
-		if inode, ok := uniqueIndexedEntries[uniqueKey]; !ok {
-			if !entryStat.IsDir() {
-				syncJob := data.SyncJob{Path: filePath, IsIndexed: false, IsContentChange: true}
-				readJobs <- syncJob
+
+		indexedEntry, isIndexed := indexedEntries[uniqueKey]
+		isContentChange := false
+		if !isDir {
+			if !isIndexed || entryMtim.Equal(indexedEntry.ModificationTime) {
+				isContentChange = true
 			}
-		} else {
-			if !entryMtim.Equal(inode.ModificationTime) {
-				syncJob := data.SyncJob{Path: filePath, IsIndexed: true, IsContentChange: !entry.IsDir()}
-				readJobs <- syncJob
-			} else {
-				syncJob := data.SyncJob{Path: filePath, IsIndexed: true, IsContentChange: false}
-				readJobs <- syncJob
-			}
+		}
+		
+		readJobs <- data.SyncJob{
+			Path: filePath,
+			IsIndexed: isIndexed,
+			IsContentChange: isContentChange,
+			Stat: &entryStat,
+			StatT: *entryStatT,
 		}
 	}
 

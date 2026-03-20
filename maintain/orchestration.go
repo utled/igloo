@@ -39,7 +39,7 @@ func orchestrateScan(startPath string, config *data.Config) error {
 		}
 	}(con)
 
-	uniqueIndexedEntries, err := data.GetUniqueIndexedEntries(con)
+	indexedEntries, err := data.GetIndexedEntries(con)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -61,11 +61,11 @@ func orchestrateScan(startPath string, config *data.Config) error {
 	}
 
 	deletionProdWG.Add(1)
-	traverseIndexedEntries(deletionJobs, uniqueIndexedEntries, &deletionProdWG)
+	traverseIndexedEntries(deletionJobs, indexedEntries, &deletionProdWG)
 
 	scannerWG.Add(entryScanners)
 	for i := 0; i < entryScanners; i += 1 {
-		go scanWorker(scanJobs, readJobs, uniqueIndexedEntries, &scannerWG, config)
+		go scanWorker(scanJobs, readJobs, indexedEntries, &scannerWG, config)
 	}
 
 	scannerWG.Add(newDirWorkers)
@@ -79,7 +79,7 @@ func orchestrateScan(startPath string, config *data.Config) error {
 	}
 
 	producerWG.Add(1)
-	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, uniqueIndexedEntries, &producerWG, config)
+	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, indexedEntries, &producerWG, config)
 
 	producerWG.Wait()
 	close(scanJobs)

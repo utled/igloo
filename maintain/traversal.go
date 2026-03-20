@@ -16,8 +16,7 @@ import (
 )
 
 func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data.Config, con *sql.DB) error {
-	fmt.Println("Traversing new dir: ", startPath)
-	uniqueIndexedEntries, err := data.GetUniqueIndexedEntries(con)
+	indexedEntries, err := data.GetIndexedEntries(con)
 	if err != nil {
 		return err
 	}
@@ -35,25 +34,27 @@ func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data
 			return err
 		}
 
-		var syncJob data.SyncJob
 		entryStatT := entryStat.Sys().(*syscall.Stat_t)
 		uniqueKey := strconv.Itoa(int(entryStatT.Dev)) + strconv.Itoa(int(entryStatT.Ino)) + path
-		if inode, ok := uniqueIndexedEntries[uniqueKey]; ok {
-			entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)
-			indexedMtim := inode.ModificationTime
-			if entryStat.IsDir() || entryMtim.Equal(indexedMtim) {
-				syncJob = data.SyncJob{Path: path, IsIndexed: true, IsContentChange: false}
+		indexedEntry, isIndexed := indexedEntries[uniqueKey]
+		isContentChange := false
+
+		if !entryStat.IsDir() {
+			if !isIndexed {
+				isContentChange = true
 			} else {
-				syncJob = data.SyncJob{Path: path, IsIndexed: true, IsContentChange: true}
-			}
-		} else {
-			if entryStat.IsDir() {
-				syncJob = data.SyncJob{Path: path, IsIndexed: false, IsContentChange: false}
-			} else {
-				syncJob = data.SyncJob{Path: path, IsIndexed: false, IsContentChange: true}
+				entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)				
+				isContentChange = !entryMtim.Equal(indexedEntry.ModificationTime)
 			}
 		}
-		readJobs <- syncJob
+
+		readJobs <- data.SyncJob{
+			Path: path,
+			IsIndexed: isIndexed, 
+			IsContentChange: isContentChange,
+			Stat: &entryStat,
+			StatT: *entryStatT,
+		}
 		return nil
 	})
 	if err != nil {
@@ -63,12 +64,16 @@ func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data
 	return nil
 }
 
+// traverseDirectories crawls the directory tree from top level and checks for mTim/cTim changes to identify if anything has changed within the directory
+// if changes are identified, it produces a readJob to record the metadata of the direcotry itself and
+// a scanJob to read the contents of the directory to identify what has changed at lower levels
+// if the directory is not previously indexed (with the same unique key, i.e. dev_id+inode+path), it produces a newDirJob to perform a full scan of the directory tree below it
 func traverseDirectories(
 	scanJobs chan<- data.EntryHeader,
 	newDirJobs chan<- string,
 	readJobs chan<- data.SyncJob,
 	startPath string,
-	uniqueIndexedEntries map[string]data.EntryHeader,
+	indexedEntries map[string]data.EntryHeader,
 	wg *sync.WaitGroup,
 	config *data.Config,
 ) {
@@ -91,15 +96,21 @@ func traverseDirectories(
 		statT := entryStat.Sys().(*syscall.Stat_t)
 		uniqueKey := strconv.Itoa(int(statT.Dev)) + strconv.Itoa(int(statT.Ino)) + path
 		if d.IsDir() {
-			if indexedEntry, ok := uniqueIndexedEntries[uniqueKey]; !ok {
+			if indexedEntry, isIndexed := indexedEntries[uniqueKey]; !isIndexed {
 				newDirJobs <- path
+				return filepath.SkipDir
 			} else {
 				mTim := time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
 				cTim := time.Unix(statT.Ctim.Sec, statT.Ctim.Nsec)
 				if !indexedEntry.ModificationTime.Equal(mTim) || !indexedEntry.MetaDataChangeTime.Equal(cTim) {
-					fmt.Println("created a readJob and a scanJob")
-					readJobs <- data.SyncJob{Path: path, IsIndexed: true, IsContentChange: false}
 					scanJobs <- indexedEntry
+					readJobs <- data.SyncJob{
+						Path: path, 
+						IsIndexed: true, 
+						IsContentChange: false, 
+						Stat: &entryStat, 
+						StatT: *statT,
+					}
 				}
 			}
 		}

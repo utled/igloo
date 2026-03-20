@@ -12,13 +12,10 @@ import (
 	"time"
 )
 
-func readDir(path string, theWorks *data.CollectedInfo, isRoot bool) {
+func readDir(path string, stat *os.FileInfo, theWorks *data.CollectedInfo, isRoot bool) {
 	entry := data.EntryCollection{}
 
-	dirStat, err := os.Stat(path)
-	if err != nil {
-		log.Fatal(err)
-	}
+	dirStat := *stat
 
 	entry.FullPath = path
 	if !isRoot {
@@ -46,7 +43,7 @@ func readDir(path string, theWorks *data.CollectedInfo, isRoot bool) {
 	theWorks.Mu.Unlock()
 }
 
-func readFile(filename string, theWorks *data.CollectedInfo, config *data.Config) {
+func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, config *data.Config) {
 	entry := data.EntryCollection{}
 
 	contentsRead := false
@@ -80,10 +77,8 @@ func readFile(filename string, theWorks *data.CollectedInfo, config *data.Config
 		entry.LineCountWithContent = lineCountWithContent
 	}
 
-	fileStat, err := os.Stat(filename)
-	if err != nil {
-		log.Fatal(err)
-	}
+	fileStat := *stat
+
 	entry.FullPath = filename
 	entry.ParentDirID = filepath.Dir(filename)
 	entry.Name = filepath.Base(filename)

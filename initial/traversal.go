@@ -12,8 +12,8 @@ import (
 
 func traverseDirectory(
 	root string,
-	dirJobs chan<- string,
-	fileJobs chan<- string,
+	dirJobs chan<- data.ReadJob,
+	fileJobs chan<- data.ReadJob,
 	wg *sync.WaitGroup,
 	theWorks *data.CollectedInfo,
 	config *data.Config,
@@ -37,19 +37,22 @@ func traverseDirectory(
 			return nil
 		}
 
-		_, err = os.Stat(path)
+		entryStat, err := os.Stat(path)
 		if err != nil {
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
+		isDir := d.IsDir()
+
+		if isDir && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
 			return filepath.SkipDir
 		}
 
-		if d.IsDir() {
-			dirJobs <- path
+		readJob := data.ReadJob{Path: path, Stat: &entryStat}
+		if isDir {
+			dirJobs <- readJob
 		} else {
-			fileJobs <- path
+			fileJobs <- readJob
 		}
 
 		return nil

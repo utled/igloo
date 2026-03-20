@@ -1,7 +1,9 @@
 package data
 
 import (
+	"os"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -56,10 +58,17 @@ type NotAccessedPaths struct {
 	Err  string
 }
 
+type ReadJob struct {
+	Path            string
+	Stat            *os.FileInfo
+}
+
 type SyncJob struct {
 	Path            string
 	IsIndexed       bool
 	IsContentChange bool
+	Stat            *os.FileInfo
+	StatT           syscall.Stat_t
 }
 
 type EntryHeader struct {

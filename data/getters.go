@@ -6,8 +6,8 @@ import (
 	"strconv"
 )
 
-func GetUniqueIndexedEntries(con *sql.DB) (uniqueIndexedEntries map[string]EntryHeader, err error) {
-	uniqueIndexedEntries = make(map[string]EntryHeader)
+func GetIndexedEntries(con *sql.DB) (indexedEntries map[string]EntryHeader, err error) {
+	indexedEntries = make(map[string]EntryHeader)
 	var query string
 	var response *sql.Rows
 	query = `select dev_id, inode, path, modification_time, metadata_change_time 
@@ -15,7 +15,7 @@ func GetUniqueIndexedEntries(con *sql.DB) (uniqueIndexedEntries map[string]Entry
 				order by inode;`
 	response, err = con.Query(query)
 	if err != nil {
-		return uniqueIndexedEntries, err
+		return indexedEntries, err
 	}
 
 	for response.Next() {
@@ -30,14 +30,14 @@ func GetUniqueIndexedEntries(con *sql.DB) (uniqueIndexedEntries map[string]Entry
 			&details.MetaDataChangeTime,
 		)
 		if err != nil {
-			return uniqueIndexedEntries, fmt.Errorf("failed to serialize entry details to map: %v", err)
+			return indexedEntries, fmt.Errorf("failed to serialize entry details to map: %v", err)
 		}
 		uniqueKey := strconv.Itoa(int(devID)) + strconv.Itoa(int(inode)) + details.Path
-		uniqueIndexedEntries[uniqueKey] = details
+		indexedEntries[uniqueKey] = details
 	}
 	if err = response.Err(); err != nil {
-		return uniqueIndexedEntries, fmt.Errorf("failed to iterate through db response: %v", err)
+		return indexedEntries, fmt.Errorf("failed to iterate through db response: %v", err)
 	}
 
-	return uniqueIndexedEntries, nil
+	return indexedEntries, nil
 }
