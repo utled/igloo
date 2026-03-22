@@ -167,7 +167,7 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 		}
 	}
 
-	return nil
+	return transaction.Commit()
 }
 
 func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection) error {
@@ -219,20 +219,30 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 		}
 	}
 
-	return nil
+	return transaction.Commit()
 }
 
 func WriteNotRegisteredEntries(con *sql.DB, notRegistered []*NotAccessedPaths) error {
-	query := `insert into ignored_entries(path, error) values(?, ?)`
+	transaction, err := con.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction for not registered entries:%v", err)
+	}
+	defer transaction.Rollback()
+
+	statement, err := transaction.Prepare(`insert into ignored_entries(path, error) values(?, ?)`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare statement for not registered entries:%v", err)
+	}
+	defer statement.Close()
 
 	for _, entry := range notRegistered {
-		_, err := con.Exec(query, entry.Path, entry.Err)
+		_, err := statement.Exec(entry.Path, entry.Err)
 		if err != nil {
-			return fmt.Errorf("could not write entry to database: %s\n%w", query, err)
+			return fmt.Errorf("could not add not registered entries to update statement: %s\n%w", err)
 		}
 	}
 
-	return nil
+	return transaction.Commit()
 }
 
 func WriteScanRecord(con *sql.DB, theWorks *CollectedInfo) error {
@@ -264,12 +274,29 @@ func WriteScanRecord(con *sql.DB, theWorks *CollectedInfo) error {
 	return nil
 }
 
-func DeleteEntry(con *sql.DB, entryPath string) error {
-	query := `delete from entries where path = ?`
-	_, err := con.Exec(query, entryPath)
+func DeleteEntries(con *sql.DB, deletionEntries []*DeletionJob) error {
+	transaction, err := con.Begin()
 	if err != nil {
-		return fmt.Errorf("could not delete entry from database: %s\n%w", query, err)
+		return fmt.Errorf("failed to begin transaction for deletions:%v", err)
+	}
+	defer transaction.Rollback()
+
+	statement, err := transaction.Prepare(`delete from entries where dev_id = ? and inode = ? and path = ?`)
+	if err != nil {
+		return fmt.Errorf("failed to prepare execution statement for deletions:%v", err)
+	}
+	defer statement.Close()
+
+	for _, entry := range deletionEntries {
+		_, err := statement.Exec(
+			entry.DevID,
+			entry.Inode,
+			entry.Path,
+		)
+		if err != nil {
+			return fmt.Errorf("could not add entry %s to deletion statement: \n%w", entry.UniqueKey, err)
+		}
 	}
 
-	return nil
+	return transaction.Commit()
 }

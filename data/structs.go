@@ -30,6 +30,14 @@ type CollectedInfo struct {
 	Mu                    sync.Mutex
 }
 
+type SyncInfo struct {
+	NewEntries       []*EntryCollection
+	UpdatesWContent  []*EntryCollection
+	UpdatesWOContent []*EntryCollection
+	Deletions        []*DeletionJob
+	Mu               sync.Mutex
+}
+
 type EntryCollection struct {
 	DevID       uint64
 	Inode       uint64
@@ -59,8 +67,8 @@ type NotAccessedPaths struct {
 }
 
 type ReadJob struct {
-	Path            string
-	Stat            *os.FileInfo
+	Path string
+	Stat *os.FileInfo
 }
 
 type SyncJob struct {
@@ -71,7 +79,16 @@ type SyncJob struct {
 	StatT           syscall.Stat_t
 }
 
+type DeletionJob struct {
+	UniqueKey string
+	DevID     uint64
+	Inode     uint64
+	Path      string
+}
+
 type EntryHeader struct {
+	DevID              uint64
+	Inode              uint64
 	Path               string
 	ModificationTime   time.Time
 	MetaDataChangeTime time.Time

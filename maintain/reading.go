@@ -2,18 +2,16 @@ package maintain
 
 import (
 	"bytes"
-	"database/sql"
 	"fmt"
-	"log"
+	"igloo/data"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
-	"igloo/data"
 	"time"
 )
 
-func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
+func readEntry(syncJob data.SyncJob, config *data.Config, syncInfo *data.SyncInfo/*, con *sql.DB*/) {
 	entryStat := *syncJob.Stat
 	statT := syncJob.StatT
 
@@ -34,11 +32,11 @@ func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
 	entry.OwnerID = statT.Uid
 	entry.GroupID = statT.Gid
 
-	if !entryStat.IsDir() {
+	if !entryStat.IsDir() && entryStat.Mode().Type()&os.ModeSymlink == 0 {
 		if slices.Contains(config.ContentFileTypes, filepath.Ext(syncJob.Path)) && syncJob.IsContentChange {
 			contents, err := os.ReadFile(syncJob.Path)
 			if err != nil {
-				log.Fatal(err)
+				fmt.Println(err)
 			}
 			lineCountTotal := bytes.Count(contents, []byte("\n"))
 			blankLines := bytes.Count(contents, []byte("\n\n"))
@@ -63,25 +61,41 @@ func readEntry(syncJob data.SyncJob, config *data.Config, con *sql.DB) {
 			entry.LineCountWithContent = lineCountWithContent
 		}
 	}
-
+	/*
 	entryCollection := make([]*data.EntryCollection, 1)
 	entryCollection[0] = &entry
+	*/
 	if !syncJob.IsIndexed {
+		/*
 		err := data.WriteFullEntries(con, entryCollection)
 		if err != nil {
 			fmt.Println("error writing: ", entry.FullPath, err)
 		}
+		*/
+		syncInfo.Mu.Lock()
+		defer syncInfo.Mu.Unlock()
+		syncInfo.NewEntries = append(syncInfo.NewEntries, &entry)
 		return
 	}
 	if syncJob.IsContentChange {
+		/*
 		err := data.UpdateEntriesWithContent(con, entryCollection)
 		if err != nil {
 			fmt.Println(err)
 		}
+		*/
+		syncInfo.Mu.Lock()
+		defer syncInfo.Mu.Unlock()
+		syncInfo.UpdatesWContent = append(syncInfo.UpdatesWContent, &entry)
 		return
 	}
+	/*
 	err := data.UpdateEntriesWithoutContent(con, entryCollection)
 	if err != nil {
 		fmt.Println(err)
 	}
+	*/
+	syncInfo.Mu.Lock()
+	defer syncInfo.Mu.Unlock()
+	syncInfo.UpdatesWOContent = append(syncInfo.UpdatesWOContent, &entry)
 }

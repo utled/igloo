@@ -37,7 +37,7 @@ func traverseDirectory(
 			return nil
 		}
 
-		entryStat, err := os.Stat(path)
+		entryStat, err := os.Lstat(path)
 		if err != nil {
 			return nil
 		}

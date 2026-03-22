@@ -3,20 +3,19 @@ package main
 import (
 	"fmt"
 	"os"
-	"syscall"
 )
 
 func test() {
 	//thePath := "/home/utled/Projects/Py/DataScienceAndMachineLearning/.venv/bin/python"
-	thePath := "/home/utled/Projects/Go/igloo/main.go"
-	fileInfo, err := os.Stat(thePath)
+	thePath := "/home/utled/.local/share/Steam/steamrt64/steam-runtime-steamrt/var/tmp-ELG3D3/usr/share/X11/rgb.txt"
+	fileInfo, err := os.Lstat(thePath)
 	if err != nil {
-		fmt.Println("stat error:", err)
+		fmt.Println("lstat error:", err)
 	}
-	fmt.Println("stat:", fileInfo)
-	statT := fileInfo.Sys().(*syscall.Stat_t)
-	
-	fmt.Println("stat_t:", statT)
+	if fileInfo.Mode().Type()&os.ModeSymlink != 0 {
+		fmt.Println("is a symlink")
+	}
+	fmt.Println("lstat:", fileInfo)
 	/*
 	entries, err := os.ReadDir("/home/utled/Projects/Py/DataScienceAndMachineLearning/.venv/bin")
 	if err != nil {

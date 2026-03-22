@@ -19,12 +19,10 @@ func GetIndexedEntries(con *sql.DB) (indexedEntries map[string]EntryHeader, err 
 	}
 
 	for response.Next() {
-		var devID uint64
-		var inode uint64
 		var details EntryHeader
 		err = response.Scan(
-			&devID,
-			&inode,
+			&details.DevID,
+			&details.Inode,
 			&details.Path,
 			&details.ModificationTime,
 			&details.MetaDataChangeTime,
@@ -32,7 +30,7 @@ func GetIndexedEntries(con *sql.DB) (indexedEntries map[string]EntryHeader, err 
 		if err != nil {
 			return indexedEntries, fmt.Errorf("failed to serialize entry details to map: %v", err)
 		}
-		uniqueKey := strconv.Itoa(int(devID)) + strconv.Itoa(int(inode)) + details.Path
+		uniqueKey := strconv.Itoa(int(details.DevID)) + strconv.Itoa(int(details.Inode)) + details.Path
 		indexedEntries[uniqueKey] = details
 	}
 	if err = response.Err(); err != nil {

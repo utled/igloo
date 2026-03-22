@@ -2,12 +2,12 @@ package initial
 
 import (
 	"bytes"
-	"log"
+	"fmt"
+	"igloo/data"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
-	"igloo/data"
 	"syscall"
 	"time"
 )
@@ -45,13 +45,13 @@ func readDir(path string, stat *os.FileInfo, theWorks *data.CollectedInfo, isRoo
 
 func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, config *data.Config) {
 	entry := data.EntryCollection{}
-
 	contentsRead := false
+	fileStat := *stat
 
-	if slices.Contains(config.ContentFileTypes, filepath.Ext(filename)) {
+	if fileStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(config.ContentFileTypes, filepath.Ext(filename)) {
 		contents, err := os.ReadFile(filename)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 		contentsRead = true
 		lineCountTotal := bytes.Count(contents, []byte("\n"))
@@ -77,7 +77,6 @@ func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, 
 		entry.LineCountWithContent = lineCountWithContent
 	}
 
-	fileStat := *stat
 
 	entry.FullPath = filename
 	entry.ParentDirID = filepath.Dir(filename)

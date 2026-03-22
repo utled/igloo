@@ -19,7 +19,7 @@ func Main() error {
 	servicePath := filepath.Join(homePath, ".igloo")
 	fmt.Println("servicePath:", servicePath)
 
-	if info, err := os.Stat(servicePath); os.IsNotExist(err) {
+	if info, err := os.Lstat(servicePath); os.IsNotExist(err) {
 		fmt.Println("starting setup process")
 
 		os.MkdirAll(servicePath, os.ModePerm)

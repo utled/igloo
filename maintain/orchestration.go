@@ -2,11 +2,7 @@ package maintain
 
 import (
 	"database/sql"
-	"fmt"
-	"os"
-	"path/filepath"
 	"igloo/data"
-	"igloo/db"
 	"sync"
 )
 
@@ -21,30 +17,8 @@ const (
 	newDirWorkers         = 20
 )
 
-func orchestrateScan(startPath string, config *data.Config) error {
-	homePath, err := os.UserHomeDir()
-	if err != nil {
-		return err
-	}
-	dbPath := filepath.Join(homePath, ".igloo", "igloo.db")
-
-	con, err := db.CreateConnection(dbPath)
-	if err != nil {
-		return err
-	}
-	defer func(con *sql.DB) {
-		err = db.CloseConnection(con)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}(con)
-
-	indexedEntries, err := data.GetIndexedEntries(con)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	deletionJobs := make(chan string, deletionJobBufferSize)
+func orchestrateScan(startPath string, indexedEntries map[string]data.EntryHeader, config *data.Config, syncInfo *data.SyncInfo, con *sql.DB) error {
+	deletionJobs := make(chan data.DeletionJob, deletionJobBufferSize)
 	scanJobs := make(chan data.EntryHeader, scanJobBufferSize)
 	newDirJobs := make(chan string, newDirJobBufferSize)
 	readJobs := make(chan data.SyncJob, readJobBufferSize)
@@ -56,26 +30,26 @@ func orchestrateScan(startPath string, config *data.Config) error {
 	var readerWG sync.WaitGroup
 
 	deletionWG.Add(deletionWorkers)
-	for i := 0; i < deletionWorkers; i++ {
-		go deletionWorker(deletionJobs, con, &deletionWG)
+	for range deletionWorkers {
+		go deletionWorker(deletionJobs, syncInfo, &deletionWG)
 	}
 
 	deletionProdWG.Add(1)
 	traverseIndexedEntries(deletionJobs, indexedEntries, &deletionProdWG)
 
 	scannerWG.Add(entryScanners)
-	for i := 0; i < entryScanners; i += 1 {
+	for range entryScanners {
 		go scanWorker(scanJobs, readJobs, indexedEntries, &scannerWG, config)
 	}
 
 	scannerWG.Add(newDirWorkers)
-	for i := 0; i < newDirWorkers; i += 1 {
-		go newDirWorker(newDirJobs, readJobs, con, &scannerWG, config)
+	for range newDirWorkers {
+		go newDirWorker(newDirJobs, readJobs, &scannerWG, indexedEntries, config)
 	}
 
 	readerWG.Add(entryReaders)
-	for i := 0; i < entryReaders; i += 1 {
-		go readWorker(readJobs, con, &readerWG, config)
+	for range entryReaders {
+		go readWorker(readJobs, syncInfo, &readerWG, config)
 	}
 
 	producerWG.Add(1)

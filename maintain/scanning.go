@@ -20,7 +20,7 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries
 	for _, entry := range fileSysEntries {
 		filePath := filepath.Join(dirPath, entry.Name())
 
-		entryStat, err := os.Stat(filePath)
+		entryStat, err := os.Lstat(filePath)
 		if err != nil {
 			return err
 		}

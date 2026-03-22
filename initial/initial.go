@@ -32,9 +32,9 @@ func StartInitialScan() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	stat, err := os.Stat(config.LargeSyncPath)
+	stat, err := os.Lstat(config.LargeSyncPath)
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 	}
 	if !stat.IsDir() {
 		log.Fatal("Starting path must be a directory")

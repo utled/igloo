@@ -1,7 +1,6 @@
 package maintain
 
 import (
-	"database/sql"
 	"fmt"
 	"igloo/data"
 	"io/fs"
@@ -15,12 +14,13 @@ import (
 	"time"
 )
 
-func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data.Config, con *sql.DB) error {
-	indexedEntries, err := data.GetIndexedEntries(con)
-	if err != nil {
-		return err
-	}
-	err = filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
+func traverseNewDir(
+	readJobs chan<- data.SyncJob, 
+	startPath string, 
+	indexedEntries map[string]data.EntryHeader, 
+	config *data.Config,
+) error {
+	err := filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -29,7 +29,7 @@ func traverseNewDir(readJobs chan<- data.SyncJob, startPath string, config *data
 			return filepath.SkipDir
 		}
 
-		entryStat, err := os.Stat(path)
+		entryStat, err := os.Lstat(path)
 		if err != nil {
 			return err
 		}
@@ -88,7 +88,7 @@ func traverseDirectories(
 			return filepath.SkipDir
 		}
 
-		entryStat, err := os.Stat(path)
+		entryStat, err := os.Lstat(path)
 		if err != nil {
 			return nil
 		}

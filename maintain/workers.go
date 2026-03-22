@@ -1,8 +1,7 @@
 package maintain
 
 import (
-	"database/sql"
-	"log"
+	"fmt"
 	"igloo/data"
 	"sync"
 )
@@ -12,31 +11,31 @@ func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, 
 	for job := range scanJobs {
 		err := scanUpdatedDir(readJobs, job.Path, indexedEntries, config)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 	}
 }
-func readWorker(readJobs <-chan data.SyncJob, con *sql.DB, wg *sync.WaitGroup, config *data.Config) {
+func readWorker(readJobs <-chan data.SyncJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup, config *data.Config) {
 	defer wg.Done()
 	for job := range readJobs {
-		readEntry(job, config, con)
+		readEntry(job, config, syncInfo)
 	}
 }
-func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, con *sql.DB, wg *sync.WaitGroup, config *data.Config) {
+func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, wg *sync.WaitGroup, indexedEntries map[string]data.EntryHeader, config *data.Config) {
 	defer wg.Done()
 	for path := range newDirJobs {
-		err := traverseNewDir(readJobs, path, config, con)
+		err := traverseNewDir(readJobs, path, indexedEntries, config)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 	}
 }
-func deletionWorker(delJobs <-chan string, con *sql.DB, wg *sync.WaitGroup) {
+func deletionWorker(delJobs <-chan data.DeletionJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for path := range delJobs {
-		err := checkDelete(path, con)
+		err := checkDelete(path, syncInfo)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
 		}
 	}
 }
