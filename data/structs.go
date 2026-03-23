@@ -34,7 +34,6 @@ type SyncInfo struct {
 	NewEntries       []*EntryCollection
 	UpdatesWContent  []*EntryCollection
 	UpdatesWOContent []*EntryCollection
-	Deletions        []*DeletionJob
 	Mu               sync.Mutex
 }
 
@@ -58,7 +57,6 @@ type EntryCollection struct {
 	FullTextIndex        []byte // the complete textual content of a document, stored in separate Full-Text Search index
 	LineCountTotal       int
 	LineCountWithContent int
-	// tags               []string // user defined tags or keywords from internal metadata
 }
 
 type NotAccessedPaths struct {
@@ -79,6 +77,11 @@ type SyncJob struct {
 	StatT           syscall.Stat_t
 }
 
+type DeletionInfo struct {
+	Deletions        []*DeletionJob
+	Mu               sync.Mutex
+}
+
 type DeletionJob struct {
 	UniqueKey string
 	DevID     uint64
@@ -92,12 +95,4 @@ type EntryHeader struct {
 	Path               string
 	ModificationTime   time.Time
 	MetaDataChangeTime time.Time
-}
-
-type SearchResult struct {
-	Path             string
-	Name             string
-	Size             int64
-	ModificationTime time.Time
-	Inode            uint64
 }

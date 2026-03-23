@@ -3,14 +3,12 @@ package db
 import (
 	"database/sql"
 	"fmt"
-	"path/filepath"
 )
 
 type DefaultConfig struct{}
 
 func InitializeDB(servicePath string) error {
-	dbPath := filepath.Join(servicePath, "igloo.db")
-	db, err := CreateConnection(dbPath)
+	db, err := CreateConnection()
 	if err != nil {
 		return err
 	}

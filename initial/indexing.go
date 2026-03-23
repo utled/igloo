@@ -3,19 +3,12 @@ package initial
 import (
 	"database/sql"
 	"fmt"
-	"os"
-	"path/filepath"
 	"igloo/data"
 	"igloo/db"
 )
 
 func updateFullIndex(theWorks *data.CollectedInfo) error {
-	homePath, err := os.UserHomeDir()
-	if err != nil {
-		fmt.Println(err)
-	}
-	dbPath := filepath.Join(homePath, ".igloo", "igloo.db")
-	con, err := db.CreateConnection(dbPath)
+	con, err := db.CreateConnection()
 	if err != nil {
 		fmt.Println(err)
 	}

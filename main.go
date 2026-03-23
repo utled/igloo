@@ -27,7 +27,9 @@ func main() {
 		case "fullscan":
 			initial.StartInitialScan()
 		case "sync":
-			maintain.Start()
+			maintain.StartIndexSync()
+		case "exit":
+			os.Exit(0)
 		default:
 			fmt.Println(arguments)
 		}

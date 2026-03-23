@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-func readEntry(syncJob data.SyncJob, config *data.Config, syncInfo *data.SyncInfo/*, con *sql.DB*/) {
+// readEntry performs the actual collection of a file system entries' metadata
+// and reads file contents for filetypes defined in the program config
+// based on the readjobs' parameteres it decides what output struct to store the data in (new entry, update with content, update without content)
+func readEntry(syncJob data.SyncJob, config *data.Config, syncInfo *data.SyncInfo) {
 	entryStat := *syncJob.Stat
 	statT := syncJob.StatT
 
@@ -61,40 +64,18 @@ func readEntry(syncJob data.SyncJob, config *data.Config, syncInfo *data.SyncInf
 			entry.LineCountWithContent = lineCountWithContent
 		}
 	}
-	/*
-	entryCollection := make([]*data.EntryCollection, 1)
-	entryCollection[0] = &entry
-	*/
 	if !syncJob.IsIndexed {
-		/*
-		err := data.WriteFullEntries(con, entryCollection)
-		if err != nil {
-			fmt.Println("error writing: ", entry.FullPath, err)
-		}
-		*/
 		syncInfo.Mu.Lock()
 		defer syncInfo.Mu.Unlock()
 		syncInfo.NewEntries = append(syncInfo.NewEntries, &entry)
 		return
 	}
 	if syncJob.IsContentChange {
-		/*
-		err := data.UpdateEntriesWithContent(con, entryCollection)
-		if err != nil {
-			fmt.Println(err)
-		}
-		*/
 		syncInfo.Mu.Lock()
 		defer syncInfo.Mu.Unlock()
 		syncInfo.UpdatesWContent = append(syncInfo.UpdatesWContent, &entry)
 		return
 	}
-	/*
-	err := data.UpdateEntriesWithoutContent(con, entryCollection)
-	if err != nil {
-		fmt.Println(err)
-	}
-	*/
 	syncInfo.Mu.Lock()
 	defer syncInfo.Mu.Unlock()
 	syncInfo.UpdatesWOContent = append(syncInfo.UpdatesWOContent, &entry)
