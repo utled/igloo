@@ -38,7 +38,7 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries
 
 		entryStatT := entryStat.Sys().(*syscall.Stat_t)
 		entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)
-		uniqueKey := strconv.Itoa(int(entryStatT.Dev)) + strconv.Itoa(int(entryStatT.Ino)) + filePath
+		uniqueKey := strconv.FormatUint(entryStatT.Dev, 10) + strconv.FormatUint(entryStatT.Ino, 10) + filePath
 
 		indexedEntry, isIndexed := indexedEntries[uniqueKey]
 		isContentChange := false
@@ -83,7 +83,7 @@ func traverseNewDir(
 		}
 
 		entryStatT := entryStat.Sys().(*syscall.Stat_t)
-		uniqueKey := strconv.Itoa(int(entryStatT.Dev)) + strconv.Itoa(int(entryStatT.Ino)) + path
+		uniqueKey := strconv.FormatUint(entryStatT.Dev, 10) + strconv.FormatUint(entryStatT.Ino, 10) + path
 		indexedEntry, isIndexed := indexedEntries[uniqueKey]
 		isContentChange := false
 
@@ -142,7 +142,7 @@ func traverseDirectories(
 		}
 
 		statT := entryStat.Sys().(*syscall.Stat_t)
-		uniqueKey := strconv.Itoa(int(statT.Dev)) + strconv.Itoa(int(statT.Ino)) + path
+		uniqueKey := strconv.FormatUint(statT.Dev, 10) + strconv.FormatUint(statT.Ino, 10) + path
 		if d.IsDir() {
 			if indexedEntry, isIndexed := indexedEntries[uniqueKey]; !isIndexed {
 				newDirJobs <- path

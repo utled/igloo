@@ -124,6 +124,7 @@ func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 
 	scanCount := 10
 	for *isSyncActive && scanCount > 0 {
+		startTime := time.Now()
 		config, err := config.GetConfig()
 		if err != nil {
 			fmt.Println(err)
@@ -135,6 +136,8 @@ func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 		} else {
 			startPath = config.QuickSyncPath
 		}
+
+		fmt.Printf("Starting scan of: %s\n", startPath)
 
 		con, err := db.CreateConnection()
 		if err != nil {
@@ -152,8 +155,6 @@ func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 			fmt.Println(err)
 		}
 
-		fmt.Printf("Starting scan of: %s\n", startPath)
-		startTime := time.Now()
 		syncInfo := data.SyncInfo{}
 		err = orchestrateSync(startPath, indexedEntries, &config, &syncInfo)
 		if err != nil {

@@ -30,7 +30,7 @@ func GetIndexedEntries(con *sql.DB) (indexedEntries map[string]EntryHeader, err 
 		if err != nil {
 			return indexedEntries, fmt.Errorf("failed to serialize entry details to map: %v", err)
 		}
-		uniqueKey := strconv.Itoa(int(details.DevID)) + strconv.Itoa(int(details.Inode)) + details.Path
+		uniqueKey := strconv.FormatUint(details.DevID, 10) + strconv.FormatUint(details.Inode, 10) + details.Path
 		indexedEntries[uniqueKey] = details
 	}
 	if err = response.Err(); err != nil {

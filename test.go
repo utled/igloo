@@ -2,34 +2,44 @@ package main
 
 import (
 	"fmt"
+	"igloo/data"
+	"igloo/db"
 	"os"
+	"strconv"
+	"syscall"
 )
 
 func test() {
-	//thePath := "/home/utled/Projects/Py/DataScienceAndMachineLearning/.venv/bin/python"
-	thePath := "/home/utled/.local/share/Steam/steamrt64/steam-runtime-steamrt/var/tmp-ELG3D3/usr/share/X11/rgb.txt"
+	con, err := db.CreateConnection()
+	if err != nil {
+		fmt.Println("db connection error:", err)
+	}
+	defer db.CloseConnection(con)
+
+	thePath := "/home/utled/Projects/Go/igloo/main.go"
 	fileInfo, err := os.Lstat(thePath)
 	if err != nil {
 		fmt.Println("lstat error:", err)
 	}
-	if fileInfo.Mode().Type()&os.ModeSymlink != 0 {
-		fmt.Println("is a symlink")
-	}
-	fmt.Println("lstat:", fileInfo)
-	/*
-	entries, err := os.ReadDir("/home/utled/Projects/Py/DataScienceAndMachineLearning/.venv/bin")
-	if err != nil {
-		fmt.Println(err)
-	}
+	statT := fileInfo.Sys().(*syscall.Stat_t)
+	osDevID := statT.Dev
+	fmt.Println("osDevID", osDevID)
+	osInode := statT.Ino
+	fmt.Println("osInode", osInode)
 
-	for _, entry := range entries {
-		// Check if the entry is a symbolic link
-		if entry.Type()&os.ModeSymlink != 0 {
-			fmt.Printf("%s is a symlink\n", entry.Name())
-		} else {
-			fmt.Printf("%s is a regular file or directory\n", entry.Name())
-		}
+	osUniqueKeyFormatUint := strconv.FormatUint(osDevID, 10) + strconv.FormatUint(osInode, 10) + thePath
+	fmt.Println("osUniqueKeyFormatUint", osUniqueKeyFormatUint)
+	osUniqueKeyItoa := strconv.Itoa(int(osDevID)) + strconv.Itoa(int(osInode)) + thePath
+	fmt.Println("osUniqueKeyItoa", osUniqueKeyItoa)
+	indexedEntries, err := data.GetIndexedEntries(con)
+	if err != nil {
+		fmt.Println("indexed entry error:", err)
 	}
-	*/
+	formatUintMatchedEntry, match := indexedEntries[osUniqueKeyFormatUint]
+	fmt.Println("found match on FormatUint", match)
+	fmt.Println("FormatUint entry:\n", formatUintMatchedEntry)
+	itoaMatchedEntry, match := indexedEntries[osUniqueKeyItoa]
+	fmt.Println("found match on Itoa", match)
+	fmt.Println("Itoa entry:\n", itoaMatchedEntry)
 }
 

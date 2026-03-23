@@ -85,6 +85,7 @@ func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, 
 	entry.Size = fileStat.Size()
 
 	statT := fileStat.Sys().(*syscall.Stat_t)
+	entry.DevID = statT.Dev
 	entry.Inode = statT.Ino
 	entry.ModificationTime = time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
 	entry.AccessTime = time.Unix(statT.Atim.Sec, statT.Atim.Nsec)
