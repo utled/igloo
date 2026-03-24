@@ -3,6 +3,8 @@ package maintain
 import (
 	"database/sql"
 	"fmt"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -13,12 +15,12 @@ import (
 
 const (
 	deletionJobBufferSize = 50
-	scanJobBufferSize     = 100
-	readJobBufferSize     = 300
-	newDirJobBufferSize   = 50
-	deletionWorkers       = 10
-	entryScanners         = 15
-	entryReaders          = 40
+	scanJobBufferSize     = 50
+	readJobBufferSize     = 400
+	newDirJobBufferSize   = 10
+	deletionWorkers       = 20
+	entryScanners         = 20
+	entryReaders          = 30
 	newDirWorkers         = 5
 )
 
@@ -151,20 +153,8 @@ func orchestrateSync(startPath string, indexedEntries map[string]data.EntryHeade
 func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 	defer close(syncChan)
 
-	scanCount := 10
-	for *isSyncActive && scanCount > 0 {
+	for *isSyncActive {
 		startTime := time.Now()
-		config, err := config.GetConfig()
-		if err != nil {
-			fmt.Println(err)
-		}
-		var startPath string
-
-		if scanCount%config.LargeSyncFrequenzy == 0 {
-			startPath = config.LargeSyncPath
-		} else {
-			startPath = config.QuickSyncPath
-		}
 
 		con, err := db.CreateConnection()
 		if err != nil {
@@ -182,24 +172,26 @@ func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 			fmt.Println(err)
 		}
 
+		config, err := config.GetConfig()
+		if err != nil {
+			fmt.Println(err)
+		}
+
 		syncInfo := data.SyncInfo{}
-		err = orchestrateSync(startPath, indexedEntries, &config, &syncInfo)
+		err = orchestrateSync(config.SyncPath, indexedEntries, &config, &syncInfo)
 		if err != nil {
 			return err
 		}
+		indexedEntries = nil
 		elapsed := time.Since(startTime)
-		fmt.Printf("Scan of %s completed in: %s\n", startPath, elapsed)
+		fmt.Printf("Scan of %s completed in: %s\n", config.SyncPath, elapsed)
 
 		updateAfterSync(&syncInfo, con)
+		syncInfo = data.SyncInfo{}
+		runtime.GC()
+		debug.FreeOSMemory()
 
-		time.Sleep(1 * time.Second)
-
-		if scanCount == 1 {
-			scanCount = 10
-		} else {
-			scanCount--
-		}
-
+		time.Sleep(time.Duration(config.WaitBetweenSyncs) * time.Second)
 	}
 	return nil
 }

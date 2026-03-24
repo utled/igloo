@@ -3,10 +3,11 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"igloo/data"
 	"os"
 	"path/filepath"
 	"slices"
+
+	"igloo/data"
 )
 
 var excludedEntries = []string{
@@ -87,7 +88,7 @@ func composeExclusions(homePath string) (exclusions []string, err error) {
 
 	exclusions = append(exclusions, excludedEntries...)
 
-	return exclusions, nil 
+	return exclusions, nil
 }
 
 func InitializeConfig(homePath string, servicePath string) error {
@@ -97,10 +98,9 @@ func InitializeConfig(homePath string, servicePath string) error {
 	}
 
 	defaultConfig := data.Config{
-		LargeSyncPath:      "/",
-		QuickSyncPath:      homePath,
-		LargeSyncFrequenzy: 5,
-		ExcludedEntries: exclusions,
+		SyncPath:         "/",
+		WaitBetweenSyncs: 1,
+		ExcludedEntries:  exclusions,
 		ContentFileTypes: contentFileTypes,
 	}
 

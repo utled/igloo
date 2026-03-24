@@ -6,15 +6,17 @@ import (
 	"igloo/data"
 	"log"
 	"os"
+	"runtime"
+	"runtime/debug"
 	"sync"
 	"time"
 )
 
 const (
-	directoryWorkers       = 20
-	fileWorkers            = 80
+	directoryWorkers       = 10
+	fileWorkers            = 30
 	directoryJobBufferSize = 100
-	fileJobBufferSize      = 500
+	fileJobBufferSize      = 400
 )
 
 func StartInitialScan() {
@@ -32,14 +34,14 @@ func StartInitialScan() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	stat, err := os.Lstat(config.LargeSyncPath)
+	stat, err := os.Lstat(config.SyncPath)
 	if err != nil {
 		fmt.Println(err)
 	}
 	if !stat.IsDir() {
 		log.Fatal("Starting path must be a directory")
 	}
-	readDir(config.LargeSyncPath, &stat, &theWorks, true)
+	readDir(config.SyncPath, &stat, &theWorks, true)
 
 	for i := 0; i < directoryWorkers; i += 1 {
 		go dirWorker(dirReadJobs, &wg, &theWorks)
@@ -49,7 +51,7 @@ func StartInitialScan() {
 		go fileWorker(fileReadJobs, &wg, &theWorks, &config)
 	}
 
-	go traverseDirectory(config.LargeSyncPath, dirReadJobs, fileReadJobs, &wg, &theWorks, &config)
+	go traverseDirectory(config.SyncPath, dirReadJobs, fileReadJobs, &wg, &theWorks, &config)
 
 	wg.Wait()
 	end := time.Now()
@@ -70,4 +72,7 @@ func StartInitialScan() {
 	}
 	writeElapsed := time.Since(writeStart)
 	fmt.Printf("Full dbWrite took %s\n", writeElapsed)
+	theWorks = data.CollectedInfo{}
+	runtime.GC()
+	debug.FreeOSMemory()
 }
