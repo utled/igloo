@@ -11,7 +11,7 @@ import (
 func StartIndexSync() {
 	isSyncActive := true
 	syncChan := make(chan struct{})
-	go manageSync(&isSyncActive, syncChan)
+	go orchestrateSync(&isSyncActive, syncChan)
 
 	signalChan := make(chan os.Signal, 1)
 	exitChan := make(chan struct{})

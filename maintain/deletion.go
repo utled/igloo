@@ -1,16 +1,23 @@
 package maintain
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"sync"
 	"syscall"
-	"time"
 
 	"igloo/data"
 )
 
+func deletionWorker(delJobs <-chan data.DeletionJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for path := range delJobs {
+		err := checkDelete(path, syncInfo)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
 
 func checkDelete(entry data.DeletionJob, syncInfo *data.SyncInfo) error {
 	if entryStat, err := os.Lstat(entry.Path); err != nil {
@@ -35,18 +42,5 @@ func produceDeletionJobs(deletionJobs chan<- data.DeletionJob, indexedEntries ma
 	for uniqueKey, entry := range indexedEntries {
 		deletionJobs <- data.DeletionJob{UniqueKey: uniqueKey, DevID: entry.DevID, Inode: entry.Inode, Path: entry.Path}
 	}
-	return nil
-}
-
-func deleteAfterScan(con *sql.DB, syncInfo *data.SyncInfo) error {
-	startTime := time.Now()
-	countOfDeletions := len(syncInfo.Deletions)
-	//fmt.Printf("Starting DB deletions for: %d entries\n", countOfDeletions)
-	if countOfDeletions > 0 {
-		data.DeleteEntries(con, syncInfo.Deletions)
-	}
-	
-	elsapsed := time.Since(startTime)
-	fmt.Println("DB deletions took: ", elsapsed)
 	return nil
 }

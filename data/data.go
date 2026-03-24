@@ -1,3 +1,5 @@
+// Package data holds the definitions of all data structures used in the program
+// as well ass provides writers and getters to interact with external data sources
 package data
 
 import (

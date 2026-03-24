@@ -1,5 +1,0 @@
-{
-	"largeSyncPath": string,
-	"quickSyncPath": string,
-	"largeSyncFrequenzy": int,
-}

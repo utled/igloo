@@ -7,7 +7,7 @@ import (
 	"igloo/db"
 )
 
-func updateFullIndex(theWorks *data.CollectedInfo) error {
+func writeFullIndex(theWorks *data.CollectedInfo) error {
 	con, err := db.CreateConnection()
 	if err != nil {
 		fmt.Println(err)

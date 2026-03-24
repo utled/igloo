@@ -1,11 +1,14 @@
+// Package db provides connection and initialization of external database
 package db
 
 import (
 	"database/sql"
 	"fmt"
-)
+	"os"
+	"path/filepath"
 
-type DefaultConfig struct{}
+	_ "github.com/mattn/go-sqlite3"
+)
 
 func InitializeDB(servicePath string) error {
 	db, err := CreateConnection()
@@ -71,6 +74,29 @@ func createTables(db *sql.DB) error {
 		if err != nil {
 			return fmt.Errorf("could not create table %s: \n%w", statement, err)
 		}
+	}
+
+	return nil
+}
+
+func CreateConnection() (*sql.DB, error) {
+	homePath, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	dbPath := filepath.Join(homePath, ".igloo", "igloo.db")
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		return nil, fmt.Errorf("error opening database: %v", err)
+	}
+
+	return db, nil
+}
+
+func CloseConnection(db *sql.DB) error {
+	err := db.Close()
+	if err != nil {
+		return fmt.Errorf("faIled to close db connection: %v", err)
 	}
 
 	return nil

@@ -1,3 +1,4 @@
+// Package initial manages the full initial file system scan and indexing
 package initial
 
 import (
@@ -66,7 +67,7 @@ func StartInitialScan() {
 	theWorks.Mu.Unlock()
 
 	writeStart := time.Now()
-	err = updateFullIndex(&theWorks)
+	err = writeFullIndex(&theWorks)
 	if err != nil {
 		fmt.Println(err)
 	}

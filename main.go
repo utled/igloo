@@ -18,7 +18,7 @@ func main() {
 		arguments := strings.Split(strings.TrimSpace(input), " ")
 		switch arguments[0] {
 		case "test":
-			test()			
+			//test()			
 		case "setup":
 			err := setup.Main()
 			if err != nil {

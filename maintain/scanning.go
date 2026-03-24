@@ -14,6 +14,16 @@ import (
 	"time"
 )
 
+func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, indexedEntries map[string]data.EntryHeader, wg *sync.WaitGroup, config *data.Config) {
+	defer wg.Done()
+	for job := range scanJobs {
+		err := scanUpdatedDir(readJobs, job.Path, indexedEntries, config)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
+
 // scanUpdatedDir scans the direct entries (does not crawl the file system tree to lower levels) of a directory that has been identified as changed
 // categorizes the entries and produce parameterized readjobs with the entry stat and stat_t details.
 func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries map[string]data.EntryHeader, config *data.Config) error {
@@ -58,6 +68,17 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries
 	}
 
 	return nil
+}
+
+// newDirWorker is responsible for traversing newly created directories and categorize new file system entries to produce readjobs of the entries
+func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, wg *sync.WaitGroup, indexedEntries map[string]data.EntryHeader, config *data.Config) {
+	defer wg.Done()
+	for path := range newDirJobs {
+		err := traverseNewDir(readJobs, path, indexedEntries, config)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
 }
 
 // traverseNewDir crawls a newly created directory and it's file system tree

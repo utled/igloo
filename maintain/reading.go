@@ -8,8 +8,16 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sync"
 	"time"
 )
+
+func readWorker(readJobs <-chan data.SyncJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup, config *data.Config) {
+	defer wg.Done()
+	for job := range readJobs {
+		readEntry(job, config, syncInfo)
+	}
+}
 
 // readEntry performs the actual collection of a file system entries' metadata
 // and reads file contents for filetypes defined in the program config

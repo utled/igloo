@@ -24,47 +24,6 @@ const (
 	newDirWorkers         = 5
 )
 
-// deletionWorker is responsible for iterating all indexed entries and collect all no longer existing file system entries for deletion
-func deletionWorker(delJobs <-chan data.DeletionJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup) {
-	defer wg.Done()
-	for path := range delJobs {
-		err := checkDelete(path, syncInfo)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-}
-
-// scanWorker is responsible for scanning updated directories to categorize the update type and produce readjobs of the changed entries
-func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, indexedEntries map[string]data.EntryHeader, wg *sync.WaitGroup, config *data.Config) {
-	defer wg.Done()
-	for job := range scanJobs {
-		err := scanUpdatedDir(readJobs, job.Path, indexedEntries, config)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-}
-
-// newDirWorker is responsible for traversing newly created directories and categorize new file system entries to produce readjobs of the entries
-func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, wg *sync.WaitGroup, indexedEntries map[string]data.EntryHeader, config *data.Config) {
-	defer wg.Done()
-	for path := range newDirJobs {
-		err := traverseNewDir(readJobs, path, indexedEntries, config)
-		if err != nil {
-			fmt.Println(err)
-		}
-	}
-}
-
-// readWorker is responsible for reading and collecting metadata/contents for new/updated file system entries
-func readWorker(readJobs <-chan data.SyncJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup, config *data.Config) {
-	defer wg.Done()
-	for job := range readJobs {
-		readEntry(job, config, syncInfo)
-	}
-}
-
 // updateAfterSync takes the collected data from the sync processes and triggers db updates of the index
 func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
 	countOfDeletions := len(syncInfo.Deletions)
@@ -94,9 +53,9 @@ func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
 	fmt.Printf("Updates to DB took: %s\n", elapsed)
 }
 
-// orchestrateSync sets up channels and workgroups to balance the workload of the syncs subprocesses
+// startSync sets up channels and workgroups to balance the workload of the syncs subprocesses
 // and triggers the producer workgroup to initialize the top level sync scan and produce jobs for the other workers
-func orchestrateSync(startPath string, indexedEntries map[string]data.EntryHeader, config *data.Config, syncInfo *data.SyncInfo) error {
+func startSync(startPath string, indexedEntries map[string]data.EntryHeader, config *data.Config, syncInfo *data.SyncInfo) error {
 	deletionJobs := make(chan data.DeletionJob, deletionJobBufferSize)
 	scanJobs := make(chan data.EntryHeader, scanJobBufferSize)
 	newDirJobs := make(chan string, newDirJobBufferSize)
@@ -146,11 +105,11 @@ func orchestrateSync(startPath string, indexedEntries map[string]data.EntryHeade
 	return nil
 }
 
-// manageSync handles the sync mainloop,
+// orchestrateSync handles the sync mainloop,
 // collects the program config and current index to identify deletions/changes/additions against
 // decides the sync scope based on the config
 // waits for sync completion before triggering index updates
-func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
+func orchestrateSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 	defer close(syncChan)
 
 	for *isSyncActive {
@@ -178,7 +137,7 @@ func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 		}
 
 		syncInfo := data.SyncInfo{}
-		err = orchestrateSync(config.SyncPath, indexedEntries, &config, &syncInfo)
+		err = startSync(config.SyncPath, indexedEntries, &config, &syncInfo)
 		if err != nil {
 			return err
 		}

@@ -8,9 +8,18 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"sync"
 	"syscall"
 	"time"
 )
+
+func dirWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data.CollectedInfo) {
+	defer wg.Done()
+
+	for job := range readJobs {
+		readDir(job.Path, job.Stat, theWorks, false)
+	}
+}
 
 func readDir(path string, stat *os.FileInfo, theWorks *data.CollectedInfo, isRoot bool) {
 	entry := data.EntryCollection{}
@@ -41,6 +50,13 @@ func readDir(path string, stat *os.FileInfo, theWorks *data.CollectedInfo, isRoo
 	theWorks.NumOfDirectories += 1
 	theWorks.EntryDetails = append(theWorks.EntryDetails, &entry)
 	theWorks.Mu.Unlock()
+}
+
+func fileWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data.CollectedInfo, config *data.Config) {
+	defer wg.Done()
+	for job := range readJobs {
+		readFile(job.Path, job.Stat, theWorks, config)
+	}
 }
 
 func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, config *data.Config) {

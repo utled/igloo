@@ -1,3 +1,5 @@
+// Package config defines the default configurations for the program
+// and provides initialization and getters for the externally hosted config file
 package config
 
 import (

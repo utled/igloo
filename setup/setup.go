@@ -1,3 +1,4 @@
+// Package setup creates file system artifacts (service directory, DB and config file) for the main program to interact with
 package setup
 
 import (

@@ -238,7 +238,7 @@ func WriteNotRegisteredEntries(con *sql.DB, notRegistered []*NotAccessedPaths) e
 	for _, entry := range notRegistered {
 		_, err := statement.Exec(entry.Path, entry.Err)
 		if err != nil {
-			return fmt.Errorf("could not add not registered entries to update statement: %s\n%w", err)
+			return fmt.Errorf("could not add not registered entries to update statement: %s\n%w", entry.Path, err)
 		}
 	}
 
