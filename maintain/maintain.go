@@ -10,9 +10,7 @@ import (
 
 func StartIndexSync() {
 	isSyncActive := true
-	deletionChan := make(chan struct{})
 	syncChan := make(chan struct{})
-	go manageDeletions(&isSyncActive, deletionChan)
 	go manageSync(&isSyncActive, syncChan)
 
 	signalChan := make(chan os.Signal, 1)
@@ -23,7 +21,6 @@ func StartIndexSync() {
 		<-signalChan
 		isSyncActive = false
 		fmt.Println("\nClosing down sync processes. Please wait...")
-		<-deletionChan
 		<-syncChan
 		close(exitChan)
 	}()

@@ -31,6 +31,7 @@ type CollectedInfo struct {
 }
 
 type SyncInfo struct {
+	Deletions        []*DeletionJob
 	NewEntries       []*EntryCollection
 	UpdatesWContent  []*EntryCollection
 	UpdatesWOContent []*EntryCollection
@@ -75,11 +76,6 @@ type SyncJob struct {
 	IsContentChange bool
 	Stat            *os.FileInfo
 	StatT           syscall.Stat_t
-}
-
-type DeletionInfo struct {
-	Deletions        []*DeletionJob
-	Mu               sync.Mutex
 }
 
 type DeletionJob struct {

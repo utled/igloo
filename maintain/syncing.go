@@ -12,13 +12,26 @@ import (
 )
 
 const (
-	scanJobBufferSize   = 100
-	readJobBufferSize   = 500
-	newDirJobBufferSize = 100
-	entryScanners       = 20
-	entryReaders        = 80
-	newDirWorkers       = 20
+	deletionJobBufferSize = 50
+	scanJobBufferSize     = 100
+	readJobBufferSize     = 300
+	newDirJobBufferSize   = 50
+	deletionWorkers       = 10
+	entryScanners         = 15
+	entryReaders          = 40
+	newDirWorkers         = 5
 )
+
+// deletionWorker is responsible for iterating all indexed entries and collect all no longer existing file system entries for deletion
+func deletionWorker(delJobs <-chan data.DeletionJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup) {
+	defer wg.Done()
+	for path := range delJobs {
+		err := checkDelete(path, syncInfo)
+		if err != nil {
+			fmt.Println(err)
+		}
+	}
+}
 
 // scanWorker is responsible for scanning updated directories to categorize the update type and produce readjobs of the changed entries
 func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, indexedEntries map[string]data.EntryHeader, wg *sync.WaitGroup, config *data.Config) {
@@ -52,15 +65,20 @@ func readWorker(readJobs <-chan data.SyncJob, syncInfo *data.SyncInfo, wg *sync.
 
 // updateAfterSync takes the collected data from the sync processes and triggers db updates of the index
 func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
+	countOfDeletions := len(syncInfo.Deletions)
 	countOfNewEntries := len(syncInfo.NewEntries)
 	countOfUpdatesWContent := len(syncInfo.UpdatesWContent)
 	countOfUpdatesWOContent := len(syncInfo.UpdatesWOContent)
-	fmt.Printf("Starting DB updates for:\n%d New entries\n%d Updates with content\n%d Updates without content\n",
+	fmt.Printf("Starting DB updates for:\n%d Deletions\n%d New entries\n%d Updates with content\n%d Updates without content\n",
+		countOfDeletions,
 		countOfNewEntries,
 		countOfUpdatesWContent,
 		countOfUpdatesWOContent,
 	)
 	updateDBStart := time.Now()
+	if countOfDeletions > 0 {
+		data.DeleteEntries(con, syncInfo.Deletions)
+	}
 	if countOfNewEntries > 0 {
 		data.WriteFullEntries(con, syncInfo.NewEntries)
 	}
@@ -77,13 +95,23 @@ func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
 // orchestrateSync sets up channels and workgroups to balance the workload of the syncs subprocesses
 // and triggers the producer workgroup to initialize the top level sync scan and produce jobs for the other workers
 func orchestrateSync(startPath string, indexedEntries map[string]data.EntryHeader, config *data.Config, syncInfo *data.SyncInfo) error {
+	deletionJobs := make(chan data.DeletionJob, deletionJobBufferSize)
 	scanJobs := make(chan data.EntryHeader, scanJobBufferSize)
 	newDirJobs := make(chan string, newDirJobBufferSize)
 	readJobs := make(chan data.SyncJob, readJobBufferSize)
 
+	var deletionProducerWG sync.WaitGroup
+	var deletionWG sync.WaitGroup
 	var producerWG sync.WaitGroup
 	var scannerWG sync.WaitGroup
 	var readerWG sync.WaitGroup
+
+	deletionWG.Add(deletionWorkers)
+	for range deletionWorkers {
+		go deletionWorker(deletionJobs, syncInfo, &deletionWG)
+	}
+	deletionProducerWG.Add(1)
+	go produceDeletionJobs(deletionJobs, indexedEntries, &deletionProducerWG)
 
 	scannerWG.Add(entryScanners)
 	for range entryScanners {
@@ -111,12 +139,13 @@ func orchestrateSync(startPath string, indexedEntries map[string]data.EntryHeade
 	close(readJobs)
 
 	readerWG.Wait()
+	deletionWG.Wait()
 
 	return nil
 }
 
-// manageSync handles the syncing mainloop, 
-// collects the program config and current index to identify changes/additions against
+// manageSync handles the sync mainloop,
+// collects the program config and current index to identify deletions/changes/additions against
 // decides the sync scope based on the config
 // waits for sync completion before triggering index updates
 func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
@@ -136,8 +165,6 @@ func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 		} else {
 			startPath = config.QuickSyncPath
 		}
-
-		fmt.Printf("Starting scan of: %s\n", startPath)
 
 		con, err := db.CreateConnection()
 		if err != nil {
@@ -161,7 +188,7 @@ func manageSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 			return err
 		}
 		elapsed := time.Since(startTime)
-		fmt.Printf("Scan completed in: %s\n", elapsed)
+		fmt.Printf("Scan of %s completed in: %s\n", startPath, elapsed)
 
 		updateAfterSync(&syncInfo, con)
 
