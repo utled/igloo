@@ -15,7 +15,6 @@ func traverseDirectory(
 	dirJobs chan<- data.ReadJob,
 	fileJobs chan<- data.ReadJob,
 	wg *sync.WaitGroup,
-	theWorks *data.CollectedInfo,
 	config *data.Config,
 ) {
 	defer wg.Done()
@@ -25,11 +24,6 @@ func traverseDirectory(
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			failedPath := data.NotAccessedPaths{Path: path, Err: err.Error()}
-			theWorks.Mu.Lock()
-			theWorks.NumOfIgnoredEntries += 1
-			theWorks.NotRegistered = append(theWorks.NotRegistered, &failedPath)
-			theWorks.Mu.Unlock()
 			return nil
 		}
 

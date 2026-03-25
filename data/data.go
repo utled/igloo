@@ -17,16 +17,7 @@ type Config struct {
 }
 
 type CollectedInfo struct {
-	ScanStart             time.Time
-	ScanEnd               time.Time
-	ScanDuration          time.Duration
-	IndexingCompleted     bool
-	NumOfFiles            int
-	NumOfDirectories      int
-	NumOfFilesWithContent int
-	NumOfIgnoredEntries   int
 	EntryDetails          []*EntryCollection
-	NotRegistered         []*NotAccessedPaths
 	Mu                    sync.Mutex
 }
 
@@ -58,11 +49,6 @@ type EntryCollection struct {
 	FullTextIndex        []byte // the complete textual content of a document, stored in separate Full-Text Search index
 	LineCountTotal       int
 	LineCountWithContent int
-}
-
-type NotAccessedPaths struct {
-	Path string
-	Err  string
 }
 
 type ReadJob struct {

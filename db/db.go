@@ -59,14 +59,6 @@ func createTables(db *sql.DB) error {
     		line_count_w_content int,
 				primary key(dev_id, inode, path)
 		) without rowid;`,
-		`create table if not exists tagged_entries (
-    		inode int not null primary key,
-    		tags text
-		);`,
-		`create table if not exists ignored_entries (
-    		path text,
-    		error text
-		);`,
 	}
 
 	for _, statement := range tableStatements {

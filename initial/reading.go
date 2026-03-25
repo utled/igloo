@@ -47,7 +47,6 @@ func readDir(path string, stat *os.FileInfo, theWorks *data.CollectedInfo, isRoo
 	entry.FileType = filepath.Ext(entry.Name)
 
 	theWorks.Mu.Lock()
-	theWorks.NumOfDirectories += 1
 	theWorks.EntryDetails = append(theWorks.EntryDetails, &entry)
 	theWorks.Mu.Unlock()
 }
@@ -61,7 +60,6 @@ func fileWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data
 
 func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, config *data.Config) {
 	entry := data.EntryCollection{}
-	contentsRead := false
 	fileStat := *stat
 
 	if fileStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(config.ContentFileTypes, filepath.Ext(filename)) {
@@ -69,7 +67,6 @@ func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, 
 		if err != nil {
 			fmt.Println(err)
 		}
-		contentsRead = true
 		lineCountTotal := bytes.Count(contents, []byte("\n"))
 		blankLines := bytes.Count(contents, []byte("\n\n"))
 		lineCountWithContent := lineCountTotal - blankLines
@@ -111,10 +108,6 @@ func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, 
 	entry.GroupID = statT.Gid
 
 	theWorks.Mu.Lock()
-	theWorks.NumOfFiles += 1
-	if contentsRead {
-		theWorks.NumOfFilesWithContent += 1
-	}
 	theWorks.EntryDetails = append(theWorks.EntryDetails, &entry)
 	theWorks.Mu.Unlock()
 }

@@ -29,17 +29,5 @@ func writeFullIndex(theWorks *data.CollectedInfo) error {
 		return err
 	}
 
-	err = data.WriteNotRegisteredEntries(con, theWorks.NotRegistered)
-	if err != nil {
-		return err
-	}
-
-	theWorks.IndexingCompleted = true
-
-	err = data.WriteScanRecord(con, theWorks)
-	if err != nil {
-		return err
-	}
-
 	return nil
 }

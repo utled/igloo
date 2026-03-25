@@ -34,18 +34,6 @@ func ClearExistingData(con *sql.DB) error {
 			return fmt.Errorf("could not clear existing data with query: %s\n%w", query, err)
 		}
 	}
-
-	ignoredEntriesExist, err := checkTableExists(con, "entries")
-	if err != nil {
-		return err
-	} else if ignoredEntriesExist {
-		query := `delete from ignored_entries;`
-		_, err = con.Exec(query)
-		if err != nil {
-			return fmt.Errorf("could not clear existing data with query: %s\n%w", query, err)
-		}
-	}
-
 	return nil
 }
 
@@ -220,58 +208,6 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 	}
 
 	return transaction.Commit()
-}
-
-func WriteNotRegisteredEntries(con *sql.DB, notRegistered []*NotAccessedPaths) error {
-	transaction, err := con.Begin()
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction for not registered entries:%v", err)
-	}
-	defer transaction.Rollback()
-
-	statement, err := transaction.Prepare(`insert into ignored_entries(path, error) values(?, ?)`)
-	if err != nil {
-		return fmt.Errorf("failed to prepare statement for not registered entries:%v", err)
-	}
-	defer statement.Close()
-
-	for _, entry := range notRegistered {
-		_, err := statement.Exec(entry.Path, entry.Err)
-		if err != nil {
-			return fmt.Errorf("could not add not registered entries to update statement: %s\n%w", entry.Path, err)
-		}
-	}
-
-	return transaction.Commit()
-}
-
-func WriteScanRecord(con *sql.DB, theWorks *CollectedInfo) error {
-	query := `insert into full_scans(
-                    scan_start,
-					scan_end,
-					scan_duration,
-					directory_count,
-				    file_count,
-				    file_w_content_count,
-				    ignored_entries_count,
-				    indexing_completed)
-					values (?, ?, ?, ?, ?, ?, ?, ?)`
-
-	_, err := con.Exec(
-		query,
-		theWorks.ScanStart,
-		theWorks.ScanEnd,
-		theWorks.ScanDuration,
-		theWorks.NumOfDirectories,
-		theWorks.NumOfFiles,
-		theWorks.NumOfFilesWithContent,
-		theWorks.NumOfIgnoredEntries,
-		theWorks.IndexingCompleted)
-	if err != nil {
-		return fmt.Errorf("could not write entry to database: %s\n%w", query, err)
-	}
-
-	return nil
 }
 
 func DeleteEntries(con *sql.DB, deletionEntries []*DeletionJob) error {

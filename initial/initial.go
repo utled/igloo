@@ -52,19 +52,13 @@ func StartInitialScan() {
 		go fileWorker(fileReadJobs, &wg, &theWorks, &config)
 	}
 
-	go traverseDirectory(config.SyncPath, dirReadJobs, fileReadJobs, &wg, &theWorks, &config)
+	go traverseDirectory(config.SyncPath, dirReadJobs, fileReadJobs, &wg, &config)
 
 	wg.Wait()
 	end := time.Now()
 	elapsed := end.Sub(start)
 
 	fmt.Printf("Full scan took %s\n", elapsed)
-
-	theWorks.Mu.Lock()
-	theWorks.ScanStart = start
-	theWorks.ScanEnd = end
-	theWorks.ScanDuration = elapsed
-	theWorks.Mu.Unlock()
 
 	writeStart := time.Now()
 	err = writeFullIndex(&theWorks)

@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"igloo/data"
 	"io/fs"
-	"log"
 	"os"
 	"path/filepath"
 	"slices"
@@ -150,7 +149,11 @@ func traverseDirectories(
 
 	err := filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			fmt.Println("os.isPermission(err)", os.IsPermission(err))
+			if os.IsPermission(err) {
+				fmt.Println("permission error")
+			}
+			return nil // log error
 		}
 
 		if d.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
@@ -159,7 +162,7 @@ func traverseDirectories(
 
 		entryStat, err := os.Lstat(path)
 		if err != nil {
-			return nil
+			return nil // log error
 		}
 
 		statT := entryStat.Sys().(*syscall.Stat_t)
@@ -188,6 +191,6 @@ func traverseDirectories(
 	})
 
 	if err != nil {
-		log.Printf("Fatal error during directory traversal: %v", err)
+		fmt.Println("scanning.go - func traverseDirectories - ", "error during directory traversal:", err)
 	}
 }
