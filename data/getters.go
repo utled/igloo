@@ -15,7 +15,7 @@ func GetIndexedEntries(con *sql.DB) (indexedEntries map[string]EntryHeader, err 
 				order by inode;`
 	response, err = con.Query(query)
 	if err != nil {
-		return indexedEntries, err
+		return indexedEntries, fmt.Errorf("data.GetIndexedEntries() -> con.Query() %w", err)
 	}
 
 	for response.Next() {
@@ -28,13 +28,13 @@ func GetIndexedEntries(con *sql.DB) (indexedEntries map[string]EntryHeader, err 
 			&details.MetaDataChangeTime,
 		)
 		if err != nil {
-			return indexedEntries, fmt.Errorf("failed to serialize entry details to map: %v", err)
+			return indexedEntries, fmt.Errorf("data.GetIndexedEntries() -> response.Scan() %w", err)
 		}
 		uniqueKey := strconv.FormatUint(details.DevID, 10) + strconv.FormatUint(details.Inode, 10) + details.Path
 		indexedEntries[uniqueKey] = details
 	}
 	if err = response.Err(); err != nil {
-		return indexedEntries, fmt.Errorf("failed to iterate through db response: %v", err)
+		return indexedEntries, fmt.Errorf("data.GetIndexedEntries() -> response.Next() %w", err)
 	}
 
 	return indexedEntries, nil

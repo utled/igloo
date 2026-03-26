@@ -5,19 +5,19 @@ import (
 	"fmt"
 )
 
-func checkTableExists(con *sql.DB, tableName string) (bool, error) {
+func checkTableExists(con *sql.DB, tableName string) (tableExists bool, err error) {
 	query := `SELECT name FROM sqlite_master WHERE type='table' AND name=?`
 
 	row := con.QueryRow(query, tableName)
 
 	var name string
-	err := row.Scan(&name)
+	err = row.Scan(&name)
 
 	switch {
 	case err == sql.ErrNoRows:
 		return false, nil
 	case err != nil:
-		return false, fmt.Errorf("checkTableExists error: %w", err)
+		return false, fmt.Errorf("data.checkTableExists() -> row.Scan() %w", err)
 	default:
 		return true, nil
 	}
@@ -26,12 +26,12 @@ func checkTableExists(con *sql.DB, tableName string) (bool, error) {
 func ClearExistingData(con *sql.DB) error {
 	entriesExist, err := checkTableExists(con, "entries")
 	if err != nil {
-		return err
+		return fmt.Errorf("data.ClearExistingData() -> checkTableExists() %w", err)
 	} else if entriesExist {
 		query := `delete from entries;`
 		_, err = con.Exec(query)
 		if err != nil {
-			return fmt.Errorf("could not clear existing data with query: %s\n%w", query, err)
+			return fmt.Errorf("data.ClearExistingData() -> con.Exex() %w", err)
 		}
 	}
 	return nil
@@ -40,32 +40,32 @@ func ClearExistingData(con *sql.DB) error {
 func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 	transaction, err := con.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction for db write:%v", err)
+		return fmt.Errorf("data.WriteFullEntries() -> con.Begin() %w", err)
 	}
 	defer transaction.Rollback()
 
 	statement, err := transaction.Prepare(`insert into entries(
-										dev_id,
-                    inode,
-                    path,
-					parent_directory,
-					name,
-					is_dir,
-					size,
-					modification_time,
-					access_time,
-					metadata_change_time,
-					owner_id,
-					group_id,
-					extension,
-					filetype,
-					content_snippet,
-					full_text,
-                    line_count_total,
-                    line_count_w_content)
-					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		dev_id,
+    inode,
+    path,
+		parent_directory,
+		name,
+		is_dir,
+		size,
+		modification_time,
+		access_time,
+		metadata_change_time,
+		owner_id,
+		group_id,
+		extension,
+		filetype,
+		content_snippet,
+		full_text,
+    line_count_total,
+    line_count_w_content)
+		values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		return fmt.Errorf("failed to prepare execution statement for db write:%v", err)
+		return fmt.Errorf("data.WriteFullEntries() -> transcation.Prepare() %w", err)
 	}
 	defer statement.Close()
 
@@ -91,7 +91,7 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 			entry.LineCountWithContent,
 		)
 		if err != nil {
-			return fmt.Errorf("could not add entry %s to db write statement: \n%w", entry.FullPath, err)
+			return fmt.Errorf("data.WriteFullEntries() -> statement.Exec() for path: %s %w", entry.FullPath, err)
 		}
 	}
 
@@ -101,7 +101,7 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) error {
 	transaction, err := con.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction for db write:%v", err)
+		return fmt.Errorf("data.UpdateEntriesWithContent() -> con.Begin() %w", err)
 	}
 	defer transaction.Rollback()
 
@@ -125,7 +125,7 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
     line_count_w_content = ?
 		where dev_id = ? and inode = ?`)
 	if err != nil {
-		return fmt.Errorf("failed to prepare execution statement for db write:%v", err)
+		return fmt.Errorf("data.UpdateEntriesWithContent() -> transaction.Prepare() %w", err)
 	}
 	defer statement.Close()
 
@@ -151,7 +151,7 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 			entry.Inode,
 		)
 		if err != nil {
-			return fmt.Errorf("(with content) could not add entry %s to db update statement: \n%w", entry.FullPath, err)
+			return fmt.Errorf("data.UpdateEntriesWithContent() -> statement.Exec() for path: %s %w", entry.FullPath, err)
 		}
 	}
 
@@ -161,7 +161,7 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection) error {
 	transaction, err := con.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction for db write:%v", err)
+		return fmt.Errorf("data.UpdateEntriesWithoutContent() -> con.Begin() %w", err)
 	}
 	defer transaction.Rollback()
 
@@ -181,7 +181,7 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 		filetype = ?
 		where dev_id = ? and inode = ?`)
 	if err != nil {
-		return fmt.Errorf("failed to prepare execution statement for db write:%v", err)
+		return fmt.Errorf("data.UpdateEntriesWithoutContent() -> transaction.Prepare() %w", err)
 	}
 	defer statement.Close()
 
@@ -203,7 +203,7 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 			entry.Inode,
 		)
 		if err != nil {
-			return fmt.Errorf("(without content) could not add entry %s to db update statement: \n%w", entry.FullPath, err)
+			return fmt.Errorf("data.UpdateEntriesWithoutContent() -> statement.Exec() for path: %s %w", entry.FullPath, err)
 		}
 	}
 
@@ -213,13 +213,13 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 func DeleteEntries(con *sql.DB, deletionEntries []*DeletionJob) error {
 	transaction, err := con.Begin()
 	if err != nil {
-		return fmt.Errorf("failed to begin transaction for deletions:%v", err)
+		return fmt.Errorf("data.DeleteEntries() -> con.Begin() %w", err)
 	}
 	defer transaction.Rollback()
 
 	statement, err := transaction.Prepare(`delete from entries where dev_id = ? and inode = ? and path = ?`)
 	if err != nil {
-		return fmt.Errorf("failed to prepare execution statement for deletions:%v", err)
+		return fmt.Errorf("data.DeleteEntries() -> transaction.Prepare() %w", err)
 	}
 	defer statement.Close()
 
@@ -230,7 +230,7 @@ func DeleteEntries(con *sql.DB, deletionEntries []*DeletionJob) error {
 			entry.Path,
 		)
 		if err != nil {
-			return fmt.Errorf("could not add entry %s to deletion statement: \n%w", entry.UniqueKey, err)
+			return fmt.Errorf("data.DeleteEntries() -> statement.Exec() for entry key: %s %w", entry.UniqueKey, err)
 		}
 	}
 

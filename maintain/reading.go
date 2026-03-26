@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"igloo/data"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -47,7 +48,7 @@ func readEntry(syncJob data.SyncJob, config *data.Config, syncInfo *data.SyncInf
 		if slices.Contains(config.ContentFileTypes, filepath.Ext(syncJob.Path)) && syncJob.IsContentChange {
 			contents, err := os.ReadFile(syncJob.Path)
 			if err != nil {
-				fmt.Println(err)
+				slog.Error(fmt.Sprintf("failed to read file %s", syncJob.Path), "call", "os.ReadFile()", "err", err)
 			}
 			lineCountTotal := bytes.Count(contents, []byte("\n"))
 			blankLines := bytes.Count(contents, []byte("\n\n"))

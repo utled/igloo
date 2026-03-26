@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"igloo/config"
 	"igloo/data"
-	"log"
+	"log/slog"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -33,14 +33,14 @@ func StartInitialScan() {
 
 	config, err := config.GetConfig()
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("failed to read config", "call", "config.GetConfig()", "err", err)
 	}
 	stat, err := os.Lstat(config.SyncPath)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("failed to run Lstat on initial sync path", "call", "os.Lstat()", "err", err)
 	}
 	if !stat.IsDir() {
-		log.Fatal("Starting path must be a directory")
+		slog.Error("initial sync path is not a directory", "call", "!stat.IsDir()")
 	}
 	readDir(config.SyncPath, &stat, &theWorks, true)
 
@@ -51,22 +51,21 @@ func StartInitialScan() {
 	for i := 0; i < fileWorkers; i += 1 {
 		go fileWorker(fileReadJobs, &wg, &theWorks, &config)
 	}
-
 	go traverseDirectory(config.SyncPath, dirReadJobs, fileReadJobs, &wg, &config)
 
 	wg.Wait()
 	end := time.Now()
 	elapsed := end.Sub(start)
 
-	fmt.Printf("Full scan took %s\n", elapsed)
+	slog.Debug(fmt.Sprintf("initial scan duration: %s", elapsed))
 
 	writeStart := time.Now()
 	err = writeFullIndex(&theWorks)
 	if err != nil {
-		fmt.Println(err)
+		slog.Error("failed to write initial index to DB", "call", "initial.writeFullIndex()", "err", err)
 	}
 	writeElapsed := time.Since(writeStart)
-	fmt.Printf("Full dbWrite took %s\n", writeElapsed)
+	slog.Debug(fmt.Sprintf("initial db write duration: %s\n", writeElapsed))
 	theWorks = data.CollectedInfo{}
 	runtime.GC()
 	debug.FreeOSMemory()

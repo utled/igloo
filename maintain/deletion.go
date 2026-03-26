@@ -1,7 +1,6 @@
 package maintain
 
 import (
-	"fmt"
 	"os"
 	"sync"
 	"syscall"
@@ -11,15 +10,12 @@ import (
 
 func deletionWorker(delJobs <-chan data.DeletionJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup) {
 	defer wg.Done()
-	for path := range delJobs {
-		err := checkDelete(path, syncInfo)
-		if err != nil {
-			fmt.Println(err)
-		}
+	for entry := range delJobs {
+		checkDelete(entry, syncInfo)
 	}
 }
 
-func checkDelete(entry data.DeletionJob, syncInfo *data.SyncInfo) error {
+func checkDelete(entry data.DeletionJob, syncInfo *data.SyncInfo) {
 	if entryStat, err := os.Lstat(entry.Path); err != nil {
 		if os.IsNotExist(err) {
 			syncInfo.Mu.Lock()
@@ -28,19 +24,19 @@ func checkDelete(entry data.DeletionJob, syncInfo *data.SyncInfo) error {
 		} else {
 			statT := entryStat.Sys().(*syscall.Stat_t)
 			if entry.DevID != statT.Dev || entry.Inode != statT.Ino {
+				syncInfo.Mu.Lock()
+				defer syncInfo.Mu.Unlock()
 				syncInfo.Deletions = append(syncInfo.Deletions, &entry)
 			}
 		}
 	}
-	return nil
 }
 
-func produceDeletionJobs(deletionJobs chan<- data.DeletionJob, indexedEntries map[string]data.EntryHeader, wg *sync.WaitGroup) error {
+func produceDeletionJobs(deletionJobs chan<- data.DeletionJob, indexedEntries map[string]data.EntryHeader, wg *sync.WaitGroup) {
 	defer wg.Done()
 	defer close(deletionJobs)
 
 	for uniqueKey, entry := range indexedEntries {
 		deletionJobs <- data.DeletionJob{UniqueKey: uniqueKey, DevID: entry.DevID, Inode: entry.Inode, Path: entry.Path}
 	}
-	return nil
 }

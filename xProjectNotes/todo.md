@@ -3,7 +3,7 @@
 - [] how to solve sudo permissions (if needed)
 - [] set up autostart
 - [] how to manage index status (log file(?) with 'last fresh index', 'last index sync' et.c.)
-- [] set up robust error handling/logging
+- [x] set up robust error handling/logging
 - [] explore options for defining file types for content reading
 - [] explore options for defining excluded objects
 

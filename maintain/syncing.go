@@ -3,6 +3,7 @@ package maintain
 import (
 	"database/sql"
 	"fmt"
+	"log/slog"
 	"runtime"
 	"runtime/debug"
 	"sync"
@@ -11,6 +12,7 @@ import (
 	"igloo/config"
 	"igloo/data"
 	"igloo/db"
+	"igloo/logging"
 )
 
 const (
@@ -30,12 +32,12 @@ func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
 	countOfNewEntries := len(syncInfo.NewEntries)
 	countOfUpdatesWContent := len(syncInfo.UpdatesWContent)
 	countOfUpdatesWOContent := len(syncInfo.UpdatesWOContent)
-	fmt.Printf("Starting DB updates for:\n%d Deletions\n%d New entries\n%d Updates with content\n%d Updates without content\n",
+	slog.Debug(fmt.Sprintf("Updating DB for: %d Deletions - %d New entries - %d Updates with content - %d Updates without content",
 		countOfDeletions,
 		countOfNewEntries,
 		countOfUpdatesWContent,
 		countOfUpdatesWOContent,
-	)
+	))
 	updateDBStart := time.Now()
 	if countOfDeletions > 0 {
 		data.DeleteEntries(con, syncInfo.Deletions)
@@ -50,12 +52,12 @@ func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
 		data.UpdateEntriesWithoutContent(con, syncInfo.UpdatesWOContent)
 	}
 	elapsed := time.Since(updateDBStart)
-	fmt.Printf("Updates to DB took: %s\n", elapsed)
+	slog.Debug(fmt.Sprintf("Updates to DB took: %s", elapsed), "call", "maintain.updateAfterSync()")
 }
 
 // startSync sets up channels and workgroups to balance the workload of the syncs subprocesses
 // and triggers the producer workgroup to initialize the top level sync scan and produce jobs for the other workers
-func startSync(startPath string, indexedEntries map[string]data.EntryHeader, config *data.Config, syncInfo *data.SyncInfo) error {
+func startSync(startPath string, indexedEntries map[string]data.EntryHeader, config *data.Config, syncInfo *data.SyncInfo) {
 	deletionJobs := make(chan data.DeletionJob, deletionJobBufferSize)
 	scanJobs := make(chan data.EntryHeader, scanJobBufferSize)
 	newDirJobs := make(chan string, newDirJobBufferSize)
@@ -101,8 +103,6 @@ func startSync(startPath string, indexedEntries map[string]data.EntryHeader, con
 
 	readerWG.Wait()
 	deletionWG.Wait()
-
-	return nil
 }
 
 // orchestrateSync handles the sync mainloop,
@@ -117,33 +117,31 @@ func orchestrateSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 
 		con, err := db.CreateConnection()
 		if err != nil {
-			return err
+			return fmt.Errorf("maintain.orchestrateSync() -> db.CreateConnection() %w", err)
 		}
 		defer func(con *sql.DB) {
 			err = db.CloseConnection(con)
 			if err != nil {
-				fmt.Println(err)
+				slog.Error("failed to close db connection", "call", "db.CloseConnection()", "err", err)
 			}
 		}(con)
 
 		indexedEntries, err := data.GetIndexedEntries(con)
 		if err != nil {
-			fmt.Println(err)
+			return fmt.Errorf("maintain.orchestrateSync -> data.GetIndexedEntries() %w", err)
 		}
 
 		config, err := config.GetConfig()
 		if err != nil {
-			fmt.Println(err)
+			return fmt.Errorf("maintain.orchestrateSync -> config.GetConfig() %w", err)
 		}
+		logging.ChangeLogLevel(config.LogLevel)
 
 		syncInfo := data.SyncInfo{}
-		err = startSync(config.SyncPath, indexedEntries, &config, &syncInfo)
-		if err != nil {
-			return err
-		}
+		startSync(config.SyncPath, indexedEntries, &config, &syncInfo)
 		indexedEntries = nil
 		elapsed := time.Since(startTime)
-		fmt.Printf("Scan of %s completed in: %s\n", config.SyncPath, elapsed)
+		slog.Debug(fmt.Sprintf("Scan duration for %s: %s\n", config.SyncPath, elapsed))
 
 		updateAfterSync(&syncInfo, con)
 		syncInfo = data.SyncInfo{}

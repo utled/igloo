@@ -94,32 +94,35 @@ func composeExclusions(homePath string) (exclusions []string, err error) {
 }
 
 func InitializeConfig(homePath string, servicePath string) error {
-	exclusions, err := composeExclusions(homePath)
-	if err != nil {
-		return err
-	}
-
-	defaultConfig := data.Config{
-		SyncPath:         "/",
-		WaitBetweenSyncs: 1,
-		ExcludedEntries:  exclusions,
-		ContentFileTypes: contentFileTypes,
-	}
-
-	defaultConfigJSON, _ := json.MarshalIndent(defaultConfig, "", "  ")
 	configFilepath := filepath.Join(servicePath, "igloo.conf")
+	if _, err := os.Stat(configFilepath); err != nil {
+		exclusions, err := composeExclusions(homePath)
+		if err != nil {
+			return err
+		}
 
-	file, err := os.Create(configFilepath)
-	if err != nil {
-		return fmt.Errorf("failed to create config file:\n%v", err)
-	}
-	defer file.Close()
+		defaultConfig := data.Config{
+			SyncPath:         "/",
+			WaitBetweenSyncs: 1,
+			LogLevel:         "warning",
+			ExcludedEntries:  exclusions,
+			ContentFileTypes: contentFileTypes,
+		}
 
-	_, err = file.WriteString(string(defaultConfigJSON))
-	if err != nil {
-		return fmt.Errorf("failed to write to config file\n%v", err)
+		defaultConfigJSON, _ := json.MarshalIndent(defaultConfig, "", "  ")
+
+		file, err := os.Create(configFilepath)
+		if err != nil {
+			return fmt.Errorf("failed to create config file:\n%v", err)
+		}
+		defer file.Close()
+
+		_, err = file.WriteString(string(defaultConfigJSON))
+		if err != nil {
+			return fmt.Errorf("failed to write to config file\n%v", err)
+		}
+		file.Sync()
 	}
-	file.Sync()
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"igloo/data"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -18,7 +19,7 @@ func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, 
 	for job := range scanJobs {
 		err := scanUpdatedDir(readJobs, job.Path, indexedEntries, config)
 		if err != nil {
-			fmt.Println(err)
+			slog.Error("", "call", "maintain.scanUpdatedDir()", "err", err)
 		}
 	}
 }
@@ -28,7 +29,7 @@ func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, 
 func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries map[string]data.EntryHeader, config *data.Config) error {
 	fileSysEntries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return fmt.Errorf("failed to list entries in directory: %s\n%w", dirPath, err)
+		return fmt.Errorf("maintain.scanUpdatedDir() -> os.ReadDir() for path %s %w", dirPath, err)
 	}
 
 	for _, entry := range fileSysEntries {
@@ -36,7 +37,7 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries
 
 		entryStat, err := os.Lstat(filePath)
 		if err != nil {
-			return err
+			return fmt.Errorf("maintain.scanUpdatedDir() -> os.Lstat() for path %s %w", filePath, err)
 		}
 
 		isDir := entryStat.IsDir()
@@ -75,7 +76,7 @@ func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, wg *sy
 	for path := range newDirJobs {
 		err := traverseNewDir(readJobs, path, indexedEntries, config)
 		if err != nil {
-			fmt.Println(err)
+			slog.Error("", "call", "maintain.traverseNewDir()", "err", err)
 		}
 	}
 }
@@ -90,16 +91,23 @@ func traverseNewDir(
 ) error {
 	err := filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return err
+			if os.IsPermission(err) {
+				slog.Info("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
+			} else {
+				slog.Error(fmt.Sprintf("failed to walk path %s", path), "call", "filepath.Walkdir()", "err", err)
+			}
+			return nil
 		}
 
 		if d.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
+			slog.Debug(fmt.Sprintf("excluded path %s", path), "call", "filepath.WalkDir() -> isDir && slices.Contains()")
 			return filepath.SkipDir
 		}
 
 		entryStat, err := os.Lstat(path)
 		if err != nil {
-			return err
+			slog.Error(fmt.Sprintf("failed on path %s", path), "call", "filepath.WalkDir() -> os.Lstat()", "err", err)
+			return nil
 		}
 
 		entryStatT := entryStat.Sys().(*syscall.Stat_t)
@@ -126,7 +134,7 @@ func traverseNewDir(
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to traverse new directory:%v", err)
+		return fmt.Errorf("maintain.traverseNewDir() -> filepath.Walkdir() for startpath %s %w", startPath, err)
 	}
 
 	return nil
@@ -149,11 +157,12 @@ func traverseDirectories(
 
 	err := filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			fmt.Println("os.isPermission(err)", os.IsPermission(err))
 			if os.IsPermission(err) {
-				fmt.Println("permission error")
+				slog.Info("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
+			} else {
+				slog.Error(fmt.Sprintf("failed to walk path %s", path), "call", "filepath.Walkdir()", "err", err)
 			}
-			return nil // log error
+			return nil
 		}
 
 		if d.IsDir() && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
@@ -162,7 +171,8 @@ func traverseDirectories(
 
 		entryStat, err := os.Lstat(path)
 		if err != nil {
-			return nil // log error
+			slog.Error(fmt.Sprintf("failed on path %s", path), "call", "filepath.WalkDir() -> os.Lstat()", "err", err)
+			return nil
 		}
 
 		statT := entryStat.Sys().(*syscall.Stat_t)
@@ -191,6 +201,6 @@ func traverseDirectories(
 	})
 
 	if err != nil {
-		fmt.Println("scanning.go - func traverseDirectories - ", "error during directory traversal:", err)
+		slog.Error("failed to walk directory", "call", "filepath.WalkDir()", "err", err)
 	}
 }

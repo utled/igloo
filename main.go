@@ -3,14 +3,19 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"os"
+	"strings"
+
 	"igloo/initial"
 	"igloo/maintain"
 	"igloo/setup"
-	"os"
-	"strings"
 )
 
 func main() {
+	err := setup.Main()
+	if err != nil {
+		panic(err)
+	}
 	for {
 		reader := bufio.NewReader(os.Stdin)
 		fmt.Print("> ")
@@ -18,13 +23,8 @@ func main() {
 		arguments := strings.Split(strings.TrimSpace(input), " ")
 		switch arguments[0] {
 		case "test":
-			//test()			
-		case "setup":
-			err := setup.Main()
-			if err != nil {
-				fmt.Println(err)
-			}
-		case "fullscan":
+			// test()
+		case "init":
 			initial.StartInitialScan()
 		case "sync":
 			maintain.StartIndexSync()
@@ -34,5 +34,4 @@ func main() {
 			fmt.Println(arguments)
 		}
 	}
-
 }

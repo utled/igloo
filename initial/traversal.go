@@ -1,13 +1,15 @@
 package initial
 
 import (
+	"fmt"
 	"io/fs"
-	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
-	"igloo/data"
 	"sync"
+
+	"igloo/data"
 )
 
 func traverseDirectory(
@@ -24,6 +26,11 @@ func traverseDirectory(
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if os.IsPermission(err) {
+				slog.Info("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
+			} else {
+				slog.Error(fmt.Sprintf("failed to walk path %s", path), "call", "filepath.Walkdir()", "err", err)
+			}
 			return nil
 		}
 
@@ -33,12 +40,14 @@ func traverseDirectory(
 
 		entryStat, err := os.Lstat(path)
 		if err != nil {
+			slog.Error(fmt.Sprintf("failed on path %s", path), "call", "filepath.WalkDir() -> os.Lstat()", "err", err)
 			return nil
 		}
 
 		isDir := d.IsDir()
 
 		if isDir && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
+			slog.Debug(fmt.Sprintf("excluded path %s", path), "call", "filepath.WalkDir() -> isDir && slices.Contains()")
 			return filepath.SkipDir
 		}
 
@@ -51,8 +60,7 @@ func traverseDirectory(
 
 		return nil
 	})
-
 	if err != nil {
-		log.Printf("Fatal error during directory traversal: %v", err)
+		slog.Error("failed to walk directory", "call", "filepath.WalkDir()", "err", err)
 	}
 }

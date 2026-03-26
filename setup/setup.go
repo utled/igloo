@@ -3,35 +3,37 @@ package setup
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 
 	"igloo/config"
 	"igloo/db"
+	"igloo/logging"
 )
 
 
 func Main() error {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
-		return fmt.Errorf("failed to identify user home directory:%v", err)
+		return fmt.Errorf("setup.Main() -> os.UserHomeDir() %w", err)
 	}
 
 	servicePath := filepath.Join(homePath, ".igloo")
-	fmt.Println("servicePath:", servicePath)
 
 	if info, err := os.Lstat(servicePath); os.IsNotExist(err) {
-		fmt.Println("starting setup process")
+		slog.Debug("setup process started")
 
 		os.MkdirAll(servicePath, os.ModePerm)
 		db.InitializeDB(servicePath)
 		config.InitializeConfig(homePath, servicePath)
+		logging.InitializeLogger(servicePath)
 
-		fmt.Println("setup complete")
+		slog.Debug("setup process completed")
 	} else if err != nil {
-		return fmt.Errorf("conflicting service path was found. path already exist: %w", err)
+		return fmt.Errorf("setup.Main() -> os.Lstat() servicepath %s already exist %w", servicePath, err)
 	} else if !info.IsDir() {
-		return fmt.Errorf("conflicting service path was found. path exist but is not a directory%v", info.Name())
+		return fmt.Errorf("setup.Main() -> !info.IsDir() servicepath %s is not a directory %v", servicePath, info.Name())
 	}
 
 	return nil

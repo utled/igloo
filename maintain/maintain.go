@@ -2,7 +2,7 @@
 package maintain
 
 import (
-	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -20,8 +20,9 @@ func StartIndexSync() {
 	go func() {
 		<-signalChan
 		isSyncActive = false
-		fmt.Println("\nClosing down sync processes. Please wait...")
+		slog.Info("closing down sync processes.")
 		<-syncChan
+		slog.Info("exiting program.")
 		close(exitChan)
 	}()
 

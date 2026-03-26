@@ -2,8 +2,8 @@ package initial
 
 import (
 	"bytes"
-	"fmt"
 	"igloo/data"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -65,7 +65,7 @@ func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, 
 	if fileStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(config.ContentFileTypes, filepath.Ext(filename)) {
 		contents, err := os.ReadFile(filename)
 		if err != nil {
-			fmt.Println(err)
+			slog.Error("failed to read file", "call", "os.ReadFile()", "err", err)
 		}
 		lineCountTotal := bytes.Count(contents, []byte("\n"))
 		blankLines := bytes.Count(contents, []byte("\n\n"))
