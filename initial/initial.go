@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"igloo/config"
 	"igloo/data"
+	"igloo/notifications"
 	"log/slog"
 	"os"
 	"runtime"
@@ -58,7 +59,7 @@ func StartInitialScan() {
 	elapsed := end.Sub(start)
 
 	slog.Debug(fmt.Sprintf("initial scan duration: %s", elapsed))
-
+	
 	writeStart := time.Now()
 	err = writeFullIndex(&theWorks)
 	if err != nil {
@@ -66,6 +67,10 @@ func StartInitialScan() {
 	}
 	writeElapsed := time.Since(writeStart)
 	slog.Debug(fmt.Sprintf("initial db write duration: %s\n", writeElapsed))
+	
+	countOfEntries := len(theWorks.EntryDetails)
+	notifications.Notify(fmt.Sprintf("Full file system scan completed\n%d entries have been indexed", countOfEntries), false)
+
 	theWorks = data.CollectedInfo{}
 	runtime.GC()
 	debug.FreeOSMemory()

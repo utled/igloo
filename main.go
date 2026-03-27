@@ -8,6 +8,7 @@ import (
 
 	"igloo/initial"
 	"igloo/maintain"
+	"igloo/notifications"
 	"igloo/setup"
 )
 
@@ -22,6 +23,8 @@ func main() {
 		input, _ := reader.ReadString('\n')
 		arguments := strings.Split(strings.TrimSpace(input), " ")
 		switch arguments[0] {
+		case "notify":
+			notifications.Notify("a notification", false)
 		case "test":
 			// test()
 		case "init":

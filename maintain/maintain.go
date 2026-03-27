@@ -2,6 +2,7 @@
 package maintain
 
 import (
+	"igloo/notifications"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -23,6 +24,7 @@ func StartIndexSync() {
 		slog.Info("closing down sync processes.")
 		<-syncChan
 		slog.Info("exiting program.")
+		notifications.Notify("Service has been stopped", false)
 		close(exitChan)
 	}()
 

@@ -38,6 +38,7 @@ func InitializeLogger(servicePath string) {
 	slog.SetDefault(logger)
 	slog.Info("logger initialized", "call", "slog.SetDefault()")
 
+
 	config, err := config.GetConfig()
 	if err != nil {
 		slog.Error("", "call", "config.GetConfig()", "err", err)
