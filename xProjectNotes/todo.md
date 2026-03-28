@@ -1,13 +1,12 @@
 # TODO
-## General
 - [] how to solve sudo permissions (if needed)
 - [] set up autostart
 - [] how to manage index status (log file(?) with 'last fresh index', 'last index sync' et.c.)
 - [x] set up robust error handling/logging
+- [x] set up OS/Dbus notifications
+- [] set up log file monitoring with notification
+- [] set up config update monitoring (with atomic pointer?)
 - [] explore options for defining file types for content reading
 - [] explore options for defining excluded objects
-
-
-# BUG FIXES & CHANGES
-## General
 - [] find better method for deletion monitoring
+- [] fine tune worker pool- & channel buffer sizes 

@@ -1,10 +1,8 @@
 package main
 
 import (
-	"bufio"
+	"flag"
 	"fmt"
-	"os"
-	"strings"
 
 	"igloo/initial"
 	"igloo/maintain"
@@ -13,28 +11,36 @@ import (
 )
 
 func main() {
-	err := setup.Main()
-	if err != nil {
-		panic(err)
-	}
-	for {
-		reader := bufio.NewReader(os.Stdin)
-		fmt.Print("> ")
-		input, _ := reader.ReadString('\n')
-		arguments := strings.Split(strings.TrimSpace(input), " ")
-		switch arguments[0] {
-		case "notify":
-			notifications.Notify("a notification", false)
-		case "test":
-			// test()
-		case "init":
+	notify := flag.Bool("notify", false, "for testing purposes. triggers a meaningless dbus notification")
+	setupOnly := flag.Bool("setup", false, "runs the setup/initialization of db, config file et.c without starting the indexing process")
+	init := flag.Bool("init", false, "starts an initial scan of the whole file system (runs setup steps if not run seperately)")
+	sync := flag.Bool("sync", false, "starts the continuous index sync")
+	refresh := flag.Bool("refresh", false, "sends USR1 signal to an ongoing sync process to run a full index refresh before resuming sync")
+
+	flag.Parse()
+	if flag.NFlag() > 0 {
+		switch {
+		case *setupOnly:
+			err := setup.Main()
+			if err != nil {
+				panic(err)
+			}
+		case *init:
+			err := setup.Main()
+			if err != nil {
+				panic(err)
+			}
 			initial.StartInitialScan()
-		case "sync":
+		case *sync:
 			maintain.StartIndexSync()
-		case "exit":
-			os.Exit(0)
+		case *refresh:
+			// signal already running PID
+		case *notify:
+			notifications.Notify("a notification", false)
 		default:
-			fmt.Println(arguments)
+			fmt.Println("unknown command. available commands via --help")
 		}
 	}
+
+	fmt.Println("requires command. available commands via --help")
 }
