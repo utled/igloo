@@ -22,6 +22,14 @@ const (
 
 func StartInitialScan() {
 	start := time.Now()
+
+	err := utils.GetConfig()
+	if err != nil {
+		slog.Error("", "call", "utils.GetConfig()", "err", err)
+	}
+	utils.CheckUpdateLogLevel()
+	syncPath := utils.Config.SyncPath
+	
 	theWorks := data.CollectedInfo{}
 
 	fileReadJobs := make(chan data.ReadJob, fileJobBufferSize)
@@ -31,27 +39,23 @@ func StartInitialScan() {
 	totalWorkers := 1 + directoryWorkers + fileWorkers
 	wg.Add(totalWorkers)
 
-	config, err := utils.GetConfig()
-	if err != nil {
-		slog.Error("failed to read config", "call", "config.GetConfig()", "err", err)
-	}
-	stat, err := os.Lstat(config.SyncPath)
+	stat, err := os.Lstat(syncPath)
 	if err != nil {
 		slog.Error("failed to run Lstat on initial sync path", "call", "os.Lstat()", "err", err)
 	}
 	if !stat.IsDir() {
 		slog.Error("initial sync path is not a directory", "call", "!stat.IsDir()")
 	}
-	readDir(config.SyncPath, &stat, &theWorks, true)
+	readDir(syncPath, &stat, &theWorks, true)
 
 	for i := 0; i < directoryWorkers; i += 1 {
 		go dirWorker(dirReadJobs, &wg, &theWorks)
 	}
 
 	for i := 0; i < fileWorkers; i += 1 {
-		go fileWorker(fileReadJobs, &wg, &theWorks, &config)
+		go fileWorker(fileReadJobs, &wg, &theWorks)
 	}
-	go traverseDirectory(config.SyncPath, dirReadJobs, fileReadJobs, &wg, &config)
+	go traverseDirectory(syncPath, dirReadJobs, fileReadJobs, &wg)
 
 	wg.Wait()
 	end := time.Now()

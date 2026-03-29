@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"igloo/data"
+	"igloo/utils"
 )
 
 func traverseDirectory(
@@ -17,7 +18,6 @@ func traverseDirectory(
 	dirJobs chan<- data.ReadJob,
 	fileJobs chan<- data.ReadJob,
 	wg *sync.WaitGroup,
-	config *data.Config,
 ) {
 	defer wg.Done()
 
@@ -27,7 +27,7 @@ func traverseDirectory(
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if os.IsPermission(err) {
-				slog.Info("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
+				slog.Debug("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
 			} else {
 				slog.Error(fmt.Sprintf("failed to walk path %s", path), "call", "filepath.Walkdir()", "err", err)
 			}
@@ -46,7 +46,7 @@ func traverseDirectory(
 
 		isDir := d.IsDir()
 
-		if isDir && slices.Contains(config.ExcludedEntries, filepath.Base(path)) {
+		if isDir && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(path)) {
 			slog.Debug(fmt.Sprintf("excluded path %s", path), "call", "filepath.WalkDir() -> isDir && slices.Contains()")
 			return filepath.SkipDir
 		}

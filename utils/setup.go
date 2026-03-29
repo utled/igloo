@@ -1,3 +1,4 @@
+// Package utils gathers utility functionality not part of the main indexing process
 package utils
 
 import (

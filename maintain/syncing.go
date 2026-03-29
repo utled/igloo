@@ -9,9 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"igloo/utils"
 	"igloo/data"
 	"igloo/db"
+	"igloo/initial"
+	"igloo/utils"
 )
 
 const (
@@ -56,7 +57,7 @@ func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
 
 // startSync sets up channels and workgroups to balance the workload of the syncs subprocesses
 // and triggers the producer workgroup to initialize the top level sync scan and produce jobs for the other workers
-func startSync(startPath string, indexedEntries map[string]data.EntryHeader, config *data.Config, syncInfo *data.SyncInfo) {
+func startSync(startPath string, indexedEntries map[string]data.EntryHeader, syncInfo *data.SyncInfo) {
 	deletionJobs := make(chan data.DeletionJob, deletionJobBufferSize)
 	scanJobs := make(chan data.EntryHeader, scanJobBufferSize)
 	newDirJobs := make(chan string, newDirJobBufferSize)
@@ -77,21 +78,21 @@ func startSync(startPath string, indexedEntries map[string]data.EntryHeader, con
 
 	scannerWG.Add(entryScanners)
 	for range entryScanners {
-		go scanWorker(scanJobs, readJobs, indexedEntries, &scannerWG, config)
+		go scanWorker(scanJobs, readJobs, indexedEntries, &scannerWG)
 	}
 
 	scannerWG.Add(newDirWorkers)
 	for range newDirWorkers {
-		go newDirWorker(newDirJobs, readJobs, &scannerWG, indexedEntries, config)
+		go newDirWorker(newDirJobs, readJobs, &scannerWG, indexedEntries)
 	}
 
 	readerWG.Add(entryReaders)
 	for range entryReaders {
-		go readWorker(readJobs, syncInfo, &readerWG, config)
+		go readWorker(readJobs, syncInfo, &readerWG)
 	}
 
 	producerWG.Add(1)
-	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, indexedEntries, &producerWG, config)
+	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, indexedEntries, &producerWG)
 
 	producerWG.Wait()
 	close(scanJobs)
@@ -112,6 +113,13 @@ func orchestrateSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 	defer close(syncChan)
 
 	for *isSyncActive {
+		requiresRefresh, err := utils.CheckUpdateConfig()
+		if err != nil {
+			return fmt.Errorf("maintain.orchestrateSync -> utils.GetConfig() %w", err)
+		}
+		utils.CheckUpdateLogLevel()
+		if requiresRefresh {initial.StartInitialScan()}
+
 		startTime := time.Now()
 
 		con, err := db.CreateConnection()
@@ -130,24 +138,18 @@ func orchestrateSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 			return fmt.Errorf("maintain.orchestrateSync -> data.GetIndexedEntries() %w", err)
 		}
 
-		config, err := utils.GetConfig()
-		if err != nil {
-			return fmt.Errorf("maintain.orchestrateSync -> config.GetConfig() %w", err)
-		}
-		utils.ChangeLogLevel(config.LogLevel)
-
 		syncInfo := data.SyncInfo{}
-		startSync(config.SyncPath, indexedEntries, &config, &syncInfo)
+		startSync(utils.Config.SyncPath, indexedEntries, &syncInfo)
 		indexedEntries = nil
 		elapsed := time.Since(startTime)
-		slog.Debug(fmt.Sprintf("Scan duration for %s: %s\n", config.SyncPath, elapsed))
+		slog.Debug(fmt.Sprintf("Scan duration for %s: %s\n", utils.Config.SyncPath, elapsed))
 
 		updateAfterSync(&syncInfo, con)
 		syncInfo = data.SyncInfo{}
 		runtime.GC()
 		debug.FreeOSMemory()
 
-		time.Sleep(time.Duration(config.WaitBetweenSyncs) * time.Second)
+		time.Sleep(time.Duration(utils.Config.WaitBetweenSyncs) * time.Second)
 	}
 	return nil
 }

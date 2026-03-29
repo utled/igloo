@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"igloo/data"
+	"igloo/utils"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -13,17 +14,17 @@ import (
 	"time"
 )
 
-func readWorker(readJobs <-chan data.SyncJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup, config *data.Config) {
+func readWorker(readJobs <-chan data.SyncJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for job := range readJobs {
-		readEntry(job, config, syncInfo)
+		readEntry(job, syncInfo)
 	}
 }
 
 // readEntry performs the actual collection of a file system entries' metadata
 // and reads file contents for filetypes defined in the program config
 // based on the readjobs' parameteres it decides what output struct to store the data in (new entry, update with content, update without content)
-func readEntry(syncJob data.SyncJob, config *data.Config, syncInfo *data.SyncInfo) {
+func readEntry(syncJob data.SyncJob, syncInfo *data.SyncInfo) {
 	entryStat := *syncJob.Stat
 	statT := syncJob.StatT
 
@@ -45,7 +46,7 @@ func readEntry(syncJob data.SyncJob, config *data.Config, syncInfo *data.SyncInf
 	entry.GroupID = statT.Gid
 
 	if !entryStat.IsDir() && entryStat.Mode().Type()&os.ModeSymlink == 0 {
-		if slices.Contains(config.ContentFileTypes, filepath.Ext(syncJob.Path)) && syncJob.IsContentChange {
+		if slices.Contains(utils.Config.ContentFileTypes, filepath.Ext(syncJob.Path)) && syncJob.IsContentChange {
 			contents, err := os.ReadFile(syncJob.Path)
 			if err != nil {
 				slog.Error(fmt.Sprintf("failed to read file %s", syncJob.Path), "call", "os.ReadFile()", "err", err)

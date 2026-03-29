@@ -41,6 +41,11 @@ func recordPID(pidPath string) error {
 }
 
 func main() {
+	setupOnly := flag.Bool("setup", false, "runs the setup/initialization of db, config file et.c without starting indexing processes")
+	start := flag.Bool("start", false, "starts an initial scan of the whole file system (runs setup steps if needed)")
+	refresh := flag.Bool("refresh", false, "sends SIGUSR1 to any ongoing sync process to run a full index refresh before resuming sync")
+	stop := flag.Bool("stop", false, "(gracefully) terminates any ongoing sync process")
+
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		panic(err)
@@ -50,11 +55,6 @@ func main() {
 		panic(err)
 	}
 
-	setupOnly := flag.Bool("setup", false, "runs the setup/initialization of db, config file et.c without starting indexing processes")
-	start := flag.Bool("start", false, "starts an initial scan of the whole file system (runs setup steps if needed)")
-	refresh := flag.Bool("refresh", false, "sends SIGUSR1 to any ongoing sync process to run a full index refresh before resuming sync")
-	stop := flag.Bool("stop", false, "(gracefully) terminates any ongoing sync process")
-
 	flag.Parse()
 	if flag.NFlag() > 0 {
 		switch {
@@ -63,6 +63,7 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
+			fmt.Println("setup completed")
 		case *start:
 			if details.isOngoing {
 				fmt.Println("an instance of igloo is already running. call 'igloo --stop' to terminate the process")
@@ -95,7 +96,4 @@ func main() {
 			os.Exit(0)
 		}
 	}
-
-	fmt.Println("requires command. available commands via 'igloo --help'")
-	os.Exit(0)
 }

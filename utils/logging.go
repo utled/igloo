@@ -1,3 +1,4 @@
+// Package utils gathers utility functionality not part of the main indexing process
 package utils
 
 import (
@@ -37,15 +38,11 @@ func InitializeLogger(homeDir string) {
 	slog.Info("logger initialized", "call", "slog.SetDefault()")
 
 
-	config, err := GetConfig()
-	if err != nil {
-		slog.Error("", "call", "config.GetConfig()", "err", err)
-	}
-	ChangeLogLevel(config.LogLevel)
+	CheckUpdateLogLevel()
 }
 
-func ChangeLogLevel(logLevel string) {
-	switch logLevel {
+func CheckUpdateLogLevel() {
+	switch Config.LogLevel {
 	case "debug":
 		if LogLevel.Level() != slog.LevelDebug {
 			slog.Info("Switching to DEBUG mode")

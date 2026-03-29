@@ -1,3 +1,4 @@
+// Package utils gathers utility functionality not part of the main indexing process
 package utils
 
 import (
@@ -6,8 +7,8 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-
-	"igloo/data"
+	"strings"
+	"time"
 )
 
 var excludedEntries = []string{
@@ -91,6 +92,17 @@ func composeExclusions(homePath string) (exclusions []string, err error) {
 	return exclusions, nil
 }
 
+var Config ConfigDetails
+
+type ConfigDetails struct {
+	SyncPath         string   `json:"SyncPath"`         // defaults to system root directory
+	WaitBetweenSyncs int      `json:"WaitBetweenSyncs"` // defaults to 1 second
+	LogLevel         string   `json:"LogLevel"`         // default to "warning"
+	ExcludedEntries  []string `json:"ExcludedEntries"`  // what files and directories are excluded from being indexed
+	ContentFileTypes []string `json:"ContentFileTypes"` // what file types does the index capture the contents for to allow content based searches of the index
+	LastModification time.Time
+}
+
 func InitializeConfig(homePath string) error {
 	servicePath := filepath.Join(homePath, ".igloo")
 	configFilepath := filepath.Join(servicePath, "igloo.conf")
@@ -100,7 +112,7 @@ func InitializeConfig(homePath string) error {
 			return err
 		}
 
-		defaultConfig := data.Config{
+		defaultConfig := ConfigDetails{
 			SyncPath:         "/",
 			WaitBetweenSyncs: 1,
 			LogLevel:         "warning",
@@ -126,27 +138,57 @@ func InitializeConfig(homePath string) error {
 	return nil
 }
 
-func GetConfig() (config data.Config, err error) {
-	config = data.Config{}
+func readConfig() (newConfig ConfigDetails, err error) {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
-		return config, fmt.Errorf("failed to identify user home directory:%v", err)
+		return newConfig, fmt.Errorf("failed to identify user home directory:%v", err)
 	}
 	configPath := filepath.Join(homePath, ".igloo/igloo.conf")
 	configFile, err := os.ReadFile(configPath)
 	if err != nil {
-		return config, fmt.Errorf("failed to read config file:%v", err)
+		return newConfig, fmt.Errorf("failed to read config file:%v", err)
 	}
 
-	if err = json.Unmarshal(configFile, &config); err != nil {
-		return config, fmt.Errorf("failed to unmarshal config file:%v", err)
+	if err = json.Unmarshal(configFile, &newConfig); err != nil {
+		return newConfig, fmt.Errorf("failed to unmarshal config file:%v", err)
 	}
+
+	fileStat, err := os.Lstat(configPath)
+	if err != nil {
+		return newConfig, fmt.Errorf("failed to read config metadata %w", err)
+	}
+	newConfig.LastModification = fileStat.ModTime()
 
 	for _, exclusionEntry := range excludedEntries {
-		if !slices.Contains(config.ExcludedEntries, exclusionEntry) {
-			config.ExcludedEntries = append(config.ExcludedEntries, exclusionEntry)
+		if !slices.Contains(newConfig.ExcludedEntries, exclusionEntry) {
+			newConfig.ExcludedEntries = append(newConfig.ExcludedEntries, exclusionEntry)
 		}
 	}
+	return newConfig, nil
+}
 
-	return config, nil
+func GetConfig() error {
+	newConfig, err := readConfig()
+	if err != nil {
+		return err
+	}
+	Config = newConfig
+
+	return nil
+}
+
+func CheckUpdateConfig() (requiresRefresh bool, err error) {
+	newConfig, err := readConfig()
+	if err != nil {
+		return requiresRefresh, err
+	}
+
+	if newConfig.LastModification.After(Config.LastModification) {
+		if strings.Compare(Config.SyncPath, newConfig.SyncPath) != 0 || !slices.Equal(Config.ExcludedEntries, newConfig.ExcludedEntries) || !slices.Equal(Config.ContentFileTypes, newConfig.ContentFileTypes) {
+			requiresRefresh = true
+		}
+		Config = newConfig
+	}
+
+	return requiresRefresh, nil
 }

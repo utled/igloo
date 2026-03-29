@@ -3,6 +3,7 @@ package initial
 import (
 	"bytes"
 	"igloo/data"
+	"igloo/utils"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -51,18 +52,18 @@ func readDir(path string, stat *os.FileInfo, theWorks *data.CollectedInfo, isRoo
 	theWorks.Mu.Unlock()
 }
 
-func fileWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data.CollectedInfo, config *data.Config) {
+func fileWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data.CollectedInfo) {
 	defer wg.Done()
 	for job := range readJobs {
-		readFile(job.Path, job.Stat, theWorks, config)
+		readFile(job.Path, job.Stat, theWorks)
 	}
 }
 
-func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo, config *data.Config) {
+func readFile(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo) {
 	entry := data.EntryCollection{}
 	fileStat := *stat
 
-	if fileStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(config.ContentFileTypes, filepath.Ext(filename)) {
+	if fileStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(utils.Config.ContentFileTypes, filepath.Ext(filename)) {
 		contents, err := os.ReadFile(filename)
 		if err != nil {
 			slog.Error("failed to read file", "call", "os.ReadFile()", "err", err)
