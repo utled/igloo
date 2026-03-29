@@ -9,9 +9,8 @@ import (
 	"syscall"
 
 	"igloo/initial"
-	"igloo/logging"
+	"igloo/utils"
 	"igloo/maintain"
-	"igloo/setup"
 )
 
 type ongoingProcessDetails struct {
@@ -60,7 +59,7 @@ func main() {
 	if flag.NFlag() > 0 {
 		switch {
 		case *setupOnly:
-			err := setup.RunSetup(homeDir)
+			err := utils.RunSetup(homeDir)
 			if err != nil {
 				panic(err)
 			}
@@ -69,7 +68,7 @@ func main() {
 				fmt.Println("an instance of igloo is already running. call 'igloo --stop' to terminate the process")
 				return
 			}
-			logging.InitializeLogger(homeDir)
+			utils.InitializeLogger(homeDir)
 			initial.StartInitialScan()
 			recordPID(details.pidPath)
 			maintain.StartIndexSync()

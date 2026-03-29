@@ -3,9 +3,8 @@ package initial
 
 import (
 	"fmt"
-	"igloo/config"
+	"igloo/utils"
 	"igloo/data"
-	"igloo/notifications"
 	"log/slog"
 	"os"
 	"runtime"
@@ -32,7 +31,7 @@ func StartInitialScan() {
 	totalWorkers := 1 + directoryWorkers + fileWorkers
 	wg.Add(totalWorkers)
 
-	config, err := config.GetConfig()
+	config, err := utils.GetConfig()
 	if err != nil {
 		slog.Error("failed to read config", "call", "config.GetConfig()", "err", err)
 	}
@@ -69,7 +68,7 @@ func StartInitialScan() {
 	slog.Debug(fmt.Sprintf("initial db write duration: %s\n", writeElapsed))
 	
 	countOfEntries := len(theWorks.EntryDetails)
-	notifications.Notify(fmt.Sprintf("Full file system scan completed\n%d entries have been indexed", countOfEntries), false)
+	utils.Notify(fmt.Sprintf("Full file system scan completed\n%d entries have been indexed", countOfEntries), false)
 
 	theWorks = data.CollectedInfo{}
 	runtime.GC()

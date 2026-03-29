@@ -9,10 +9,9 @@ import (
 	"sync"
 	"time"
 
-	"igloo/config"
+	"igloo/utils"
 	"igloo/data"
 	"igloo/db"
-	"igloo/logging"
 )
 
 const (
@@ -131,11 +130,11 @@ func orchestrateSync(isSyncActive *bool, syncChan chan<- struct{}) error {
 			return fmt.Errorf("maintain.orchestrateSync -> data.GetIndexedEntries() %w", err)
 		}
 
-		config, err := config.GetConfig()
+		config, err := utils.GetConfig()
 		if err != nil {
 			return fmt.Errorf("maintain.orchestrateSync -> config.GetConfig() %w", err)
 		}
-		logging.ChangeLogLevel(config.LogLevel)
+		utils.ChangeLogLevel(config.LogLevel)
 
 		syncInfo := data.SyncInfo{}
 		startSync(config.SyncPath, indexedEntries, &config, &syncInfo)

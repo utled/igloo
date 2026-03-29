@@ -1,5 +1,4 @@
-// Package notifications manages OS/Dbus notifications
-package notifications
+package utils
 
 import (
 	"fmt"

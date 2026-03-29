@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"igloo/notifications"
+	"igloo/utils"
 )
 
 func StartIndexSync() {
@@ -25,7 +25,7 @@ func StartIndexSync() {
 		slog.Info("closing down sync processes.")
 		<-syncChan
 		slog.Info("exiting program.")
-		notifications.Notify("Service has been stopped", false)
+		utils.Notify("Service has been stopped", false)
 		close(exitChan)
 	}()
 

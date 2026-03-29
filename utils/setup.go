@@ -1,11 +1,9 @@
-// Package setup creates file system artifacts (service directories, DB and config file) for the main program to interact with
-package setup
+package utils
 
 import (
 	"os"
 	"path/filepath"
 
-	"igloo/config"
 	"igloo/db"
 )
 
@@ -41,7 +39,7 @@ func RunSetup(homeDir string) error {
 		os.MkdirAll(servicePath, os.ModePerm)
 		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
 		db.InitializeDB(servicePath)
-		config.InitializeConfig(homeDir)
+		InitializeConfig(homeDir)
 
 		return nil
 	}
@@ -53,7 +51,7 @@ func RunSetup(homeDir string) error {
 		db.InitializeDB(servicePath)
 	}
 	if _, err := os.Lstat(filepath.Join(servicePath, "igloo.conf")); os.IsNotExist(err) {
-		config.InitializeConfig(homeDir)
+		InitializeConfig(homeDir)
 	}
 
 	return nil

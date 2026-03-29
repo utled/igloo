@@ -1,8 +1,6 @@
-// Package logging defines the default logger for the program
-package logging
+package utils
 
 import (
-	"igloo/config"
 	"io"
 	"log/slog"
 	"os"
@@ -39,7 +37,7 @@ func InitializeLogger(homeDir string) {
 	slog.Info("logger initialized", "call", "slog.SetDefault()")
 
 
-	config, err := config.GetConfig()
+	config, err := GetConfig()
 	if err != nil {
 		slog.Error("", "call", "config.GetConfig()", "err", err)
 	}
