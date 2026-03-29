@@ -1,39 +1,59 @@
-// Package setup creates file system artifacts (service directory, DB and config file) for the main program to interact with
+// Package setup creates file system artifacts (service directories, DB and config file) for the main program to interact with
 package setup
 
 import (
-	"fmt"
-	"log/slog"
 	"os"
 	"path/filepath"
 
 	"igloo/config"
 	"igloo/db"
-	"igloo/logging"
 )
 
+func checkSetupStatus(homeDir string) (needsSetup bool, err error) {
+	servicePath := filepath.Join(homeDir, ".igloo")
 
-func Main() error {
-	homePath, err := os.UserHomeDir()
-	if err != nil {
-		return fmt.Errorf("setup.Main() -> os.UserHomeDir() %w", err)
+	var relevantPaths []string
+	relevantPaths = append(relevantPaths, servicePath)
+	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "tmp"))
+	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.db"))
+	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.conf"))
+	for _, path := range relevantPaths {
+		if _, err := os.Lstat(path); os.IsNotExist(err) {
+			needsSetup = true
+			return needsSetup, nil
+		}
 	}
 
-	servicePath := filepath.Join(homePath, ".igloo")
+	return needsSetup, nil
+}
 
-	if info, err := os.Lstat(servicePath); os.IsNotExist(err) {
-		slog.Debug("setup process started")
+func RunSetup(homeDir string) error {
+	servicePath := filepath.Join(homeDir, ".igloo")
+	needsSetup, err := checkSetupStatus(homeDir)
+	if err != nil {
+		return err
+	}
+	if !needsSetup {
+		return nil
+	}
 
+	if _, err := os.Lstat(servicePath); os.IsNotExist(err) {
 		os.MkdirAll(servicePath, os.ModePerm)
+		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
 		db.InitializeDB(servicePath)
-		config.InitializeConfig(homePath, servicePath)
-		logging.InitializeLogger(servicePath)
+		config.InitializeConfig(homeDir)
 
-		slog.Debug("setup process completed")
-	} else if err != nil {
-		return fmt.Errorf("setup.Main() -> os.Lstat() servicepath %s already exist %w", servicePath, err)
-	} else if !info.IsDir() {
-		return fmt.Errorf("setup.Main() -> !info.IsDir() servicepath %s is not a directory %v", servicePath, info.Name())
+		return nil
+	}
+
+	if _, err := os.Lstat(filepath.Join(servicePath, "tmp")); os.IsNotExist(err) {
+		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
+	}
+	if _, err := os.Lstat(filepath.Join(servicePath, "igloo.db")); os.IsNotExist(err) {
+		db.InitializeDB(servicePath)
+	}
+	if _, err := os.Lstat(filepath.Join(servicePath, "igloo.conf")); os.IsNotExist(err) {
+		config.InitializeConfig(homeDir)
 	}
 
 	return nil

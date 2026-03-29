@@ -2,11 +2,12 @@
 package maintain
 
 import (
-	"igloo/notifications"
 	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
+
+	"igloo/notifications"
 )
 
 func StartIndexSync() {
@@ -16,7 +17,7 @@ func StartIndexSync() {
 
 	signalChan := make(chan os.Signal, 1)
 	exitChan := make(chan struct{})
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
 
 	go func() {
 		<-signalChan

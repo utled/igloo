@@ -3,44 +3,100 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strconv"
+	"syscall"
 
 	"igloo/initial"
+	"igloo/logging"
 	"igloo/maintain"
-	"igloo/notifications"
 	"igloo/setup"
 )
 
+type ongoingProcessDetails struct {
+	pidPath   string
+	process   *os.Process
+	isOngoing bool
+}
+
+func getOngoingProcessDetails(homeDir string) (ongoingProcessDetails, error) {
+	details := ongoingProcessDetails{}
+	pidPath := filepath.Join(homeDir, ".igloo/tmp/igloo.pid")
+	data, _ := os.ReadFile(pidPath)
+	pid, _ := strconv.Atoi(string(data))
+
+	details.process, _ = os.FindProcess(pid)
+	err := details.process.Signal(syscall.Signal(0))
+	if err == nil {
+		details.isOngoing = true
+	}
+
+	return details, nil
+}
+
+func recordPID(pidPath string) error {
+	pid := os.Getpid()
+	os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", pid)), 0o644)
+	return nil
+}
+
 func main() {
-	notify := flag.Bool("notify", false, "for testing purposes. triggers a meaningless dbus notification")
-	setupOnly := flag.Bool("setup", false, "runs the setup/initialization of db, config file et.c without starting the indexing process")
-	init := flag.Bool("init", false, "starts an initial scan of the whole file system (runs setup steps if not run seperately)")
-	sync := flag.Bool("sync", false, "starts the continuous index sync")
-	refresh := flag.Bool("refresh", false, "sends USR1 signal to an ongoing sync process to run a full index refresh before resuming sync")
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		panic(err)
+	}
+	details, err := getOngoingProcessDetails(homeDir)
+	if err != nil {
+		panic(err)
+	}
+
+	setupOnly := flag.Bool("setup", false, "runs the setup/initialization of db, config file et.c without starting indexing processes")
+	start := flag.Bool("start", false, "starts an initial scan of the whole file system (runs setup steps if needed)")
+	refresh := flag.Bool("refresh", false, "sends SIGUSR1 to any ongoing sync process to run a full index refresh before resuming sync")
+	stop := flag.Bool("stop", false, "(gracefully) terminates any ongoing sync process")
 
 	flag.Parse()
 	if flag.NFlag() > 0 {
 		switch {
 		case *setupOnly:
-			err := setup.Main()
+			err := setup.RunSetup(homeDir)
 			if err != nil {
 				panic(err)
 			}
-		case *init:
-			err := setup.Main()
-			if err != nil {
-				panic(err)
+		case *start:
+			if details.isOngoing {
+				fmt.Println("an instance of igloo is already running. call 'igloo --stop' to terminate the process")
+				return
 			}
+			logging.InitializeLogger(homeDir)
 			initial.StartInitialScan()
-		case *sync:
+			recordPID(details.pidPath)
 			maintain.StartIndexSync()
 		case *refresh:
-			// signal already running PID
-		case *notify:
-			notifications.Notify("a notification", false)
+			if details.isOngoing {
+				details.process.Signal(syscall.SIGUSR1)
+			} else {
+				fmt.Println("no ongoing igloo process found")
+				os.Exit(0)
+			}
+		case *stop:
+			if details.isOngoing {
+				details.process.Signal(syscall.SIGTERM)
+				err = os.Remove(details.pidPath)
+				if err != nil {
+					panic(fmt.Errorf("failed to terminate ongoing process. needs to be managed manually %w", err))
+				}
+			} else {
+				fmt.Println("no ongoing igloo process found")
+				os.Exit(0)
+			}
 		default:
-			fmt.Println("unknown command. available commands via --help")
+			fmt.Println("unknown command. available commands via 'igloo --help'")
+			os.Exit(0)
 		}
 	}
 
-	fmt.Println("requires command. available commands via --help")
+	fmt.Println("requires command. available commands via 'igloo --help'")
+	os.Exit(0)
 }

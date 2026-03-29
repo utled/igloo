@@ -93,7 +93,8 @@ func composeExclusions(homePath string) (exclusions []string, err error) {
 	return exclusions, nil
 }
 
-func InitializeConfig(homePath string, servicePath string) error {
+func InitializeConfig(homePath string) error {
+	servicePath := filepath.Join(homePath, ".igloo")
 	configFilepath := filepath.Join(servicePath, "igloo.conf")
 	if _, err := os.Stat(configFilepath); err != nil {
 		exclusions, err := composeExclusions(homePath)

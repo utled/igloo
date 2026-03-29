@@ -11,8 +11,8 @@ import (
 
 var LogLevel = &slog.LevelVar{}
 
-func InitializeLogger(servicePath string) {
-	logFilePath := filepath.Join(servicePath, "igloo.log")
+func InitializeLogger(homeDir string) {
+	logFilePath := filepath.Join(homeDir, ".igloo/igloo.log")
 	if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
 		file, err := os.Create(logFilePath)
 		if err != nil {
