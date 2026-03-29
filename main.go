@@ -25,6 +25,7 @@ func getOngoingProcessDetails(homeDir string) (ongoingProcessDetails, error) {
 	data, _ := os.ReadFile(pidPath)
 	pid, _ := strconv.Atoi(string(data))
 
+	details.pidPath = pidPath
 	details.process, _ = os.FindProcess(pid)
 	err := details.process.Signal(syscall.Signal(0))
 	if err == nil {
@@ -32,12 +33,6 @@ func getOngoingProcessDetails(homeDir string) (ongoingProcessDetails, error) {
 	}
 
 	return details, nil
-}
-
-func recordPID(pidPath string) error {
-	pid := os.Getpid()
-	os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", pid)), 0o644)
-	return nil
 }
 
 func main() {
@@ -71,8 +66,7 @@ func main() {
 			}
 			utils.InitializeLogger(homeDir)
 			initial.StartInitialScan()
-			recordPID(details.pidPath)
-			maintain.StartIndexSync()
+			maintain.StartIndexSync(homeDir)
 		case *refresh:
 			if details.isOngoing {
 				details.process.Signal(syscall.SIGUSR1)
@@ -83,10 +77,6 @@ func main() {
 		case *stop:
 			if details.isOngoing {
 				details.process.Signal(syscall.SIGTERM)
-				err = os.Remove(details.pidPath)
-				if err != nil {
-					panic(fmt.Errorf("failed to terminate ongoing process. needs to be managed manually %w", err))
-				}
 			} else {
 				fmt.Println("no ongoing igloo process found")
 				os.Exit(0)
