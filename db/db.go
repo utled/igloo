@@ -77,7 +77,7 @@ func CreateConnection() (*sql.DB, error) {
 		return nil, err
 	}
 	dbPath := filepath.Join(homePath, ".igloo", "igloo.db")
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL")
 	if err != nil {
 		return nil, fmt.Errorf("error opening database: %v", err)
 	}
