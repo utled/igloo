@@ -2,6 +2,7 @@
 package initial
 
 import (
+	"database/sql"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,63 +12,101 @@ import (
 	"time"
 
 	"igloo/data"
+	"igloo/db"
 	"igloo/utils"
 )
 
 const (
-	readWorkers       = 40
-	readJobBufferSize = 500
+	readWorkers        = 4
+	batchWorkers       = 2
+	readJobBufferSize  = 8
+	batchJobBufferSize = 3000
+	batchSize          = 20000
 )
 
-func StartInitialScan() {
+func clearIndex(con *sql.DB) error {
+	err := data.ClearExistingData(con)
+	if err != nil {
+		return fmt.Errorf("initial.clearIndex() -> data.ClearExistingData() %w", err)
+	}
+
+	return nil
+}
+
+func StartInitialScan() error {
 	start := time.Now()
 
 	err := utils.GetConfig()
 	if err != nil {
-		slog.Error("", "call", "utils.GetConfig()", "err", err)
+		return fmt.Errorf("initial.StartInitialScan() -> utils.GetConfig() %w", err)
 	}
 	utils.CheckUpdateLogLevel()
+
 	syncPath := utils.Config.SyncPath
-
-	theWorks := data.CollectedInfo{}
-
-	readJobs := make(chan data.ReadJob, readJobBufferSize)
-
-	var wg sync.WaitGroup
-	totalWorkers := 1 + readWorkers
-	wg.Add(totalWorkers)
-
 	stat, err := os.Lstat(syncPath)
 	if err != nil {
-		slog.Error("failed to run Lstat on initial sync path", "call", "os.Lstat()", "err", err)
+		return fmt.Errorf("initial.StartInitialScan() -> os.Lstat() %w", err)
 	}
 	if !stat.IsDir() {
-		slog.Error("initial sync path is not a directory", "call", "!stat.IsDir()")
+		return fmt.Errorf("initial.StartInitialScan() -> !stat.IsDir() %w", err)
 	}
+
+	con, err := db.CreateConnection()
+	if err != nil {
+		return fmt.Errorf("initial.StartInitialScan() -> db.CreateConnection() %w", err)
+	}
+	defer func(con *sql.DB) {
+		err = db.CloseConnection(con)
+		if err != nil {
+			slog.Error("failed to close db connection", "call", "db.CloseConnection()", "err", err)
+		}
+	}(con)
+
+	err = clearIndex(con)
+	if err != nil {
+		return fmt.Errorf("initial.StartInitialScan() -> iniial.clearIndex() %w", err)
+	}
+
+	
+	var indexCount int
+	countChan := make(chan int)
+	go func(countChannel <-chan int) {
+		for value := range countChannel {
+			indexCount += value
+		}
+	}(countChan)
+
+	batchJobs := make(chan *data.EntryCollection, batchJobBufferSize)
+	var batchWG sync.WaitGroup
+	batchWG.Add(batchWorkers)
+	for i := 0; i < batchWorkers; i += 1 {
+		go batchWorker(batchJobs, countChan, batchSize, &batchWG, con)
+	}
+
+	readJobs := make(chan data.ReadJob, readJobBufferSize)
+	var collectorWG sync.WaitGroup
+	collectorWorkers := 1 + readWorkers
+	collectorWG.Add(collectorWorkers)
 
 	for i := 0; i < readWorkers; i += 1 {
-		go readWorker(readJobs, &wg, &theWorks)
+		go readWorker(readJobs, batchJobs, &collectorWG)
 	}
-	go traverseDirectory(syncPath, readJobs, &wg)
 
-	wg.Wait()
+	go traverseDirectory(syncPath, readJobs, &collectorWG)
+
+	collectorWG.Wait()
+	close(batchJobs)
+
+	batchWG.Wait()
+	close(countChan)
+
 	end := time.Now()
 	elapsed := end.Sub(start)
 
-	slog.Debug(fmt.Sprintf("initial scan duration: %s", elapsed))
+	slog.Debug(fmt.Sprintf("full scan of %d entries in %s", indexCount, elapsed))
+	utils.Notify(fmt.Sprintf("Full file system scan completed\n%d entries have been indexed\nduration: %s", indexCount, elapsed), false)
 
-	writeStart := time.Now()
-	err = writeFullIndex(&theWorks)
-	if err != nil {
-		slog.Error("failed to write initial index to DB", "call", "initial.writeFullIndex()", "err", err)
-	}
-	writeElapsed := time.Since(writeStart)
-	slog.Debug(fmt.Sprintf("initial db write duration: %s\n", writeElapsed))
-
-	countOfEntries := len(theWorks.EntryDetails)
-	utils.Notify(fmt.Sprintf("Full file system scan completed\n%d entries have been indexed", countOfEntries), false)
-
-	theWorks = data.CollectedInfo{}
 	runtime.GC()
 	debug.FreeOSMemory()
+	return nil
 }

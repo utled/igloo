@@ -2,6 +2,7 @@ package initial
 
 import (
 	"bytes"
+	"database/sql"
 	"log/slog"
 	"os"
 	"path/filepath"
@@ -15,22 +16,49 @@ import (
 	"igloo/utils"
 )
 
-func readWorker(readJobs <-chan data.ReadJob, wg *sync.WaitGroup, theWorks *data.CollectedInfo) {
+func batchWorker(batchJobs <-chan *data.EntryCollection, countChan chan<- int, batchSize int, wg *sync.WaitGroup, con *sql.DB) {
+	defer wg.Done()
+
+	var batchedEntries []*data.EntryCollection
+	var batchCount int
+	for job := range batchJobs {
+		batchedEntries = append(batchedEntries, job)
+		batchCount++
+		if batchCount == batchSize {
+			err := data.WriteFullEntries(con, batchedEntries)
+			if err != nil {
+				slog.Error("on looped batch", "call", "data.WriteFullEntries()", "err", err)
+			}
+			countChan <- batchCount
+			batchedEntries = nil
+			batchCount = 0
+		}
+	}
+	err := data.WriteFullEntries(con, batchedEntries)
+	if err != nil {
+		slog.Error("on final batch", "call", "data.WriteFullEntries()", "err", err)
+	}
+	countChan <- batchCount
+}
+
+func readWorker(readJobs <-chan data.ReadJob, batchJobs chan<- *data.EntryCollection, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for job := range readJobs {
-		readEntry(job.Path, job.Stat, theWorks)
+		readEntry(batchJobs, job.Path, job.Stat, false)
 	}
 }
 
-func readEntry(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo) {
+func readEntry(batchJobs chan<- *data.EntryCollection, path string, stat *os.FileInfo, isRoot bool) {
 	entry := data.EntryCollection{}
-	fileStat := *stat
+	entryStat := *stat
+	entryStatT := entryStat.Sys().(*syscall.Stat_t)
 
-	if !fileStat.IsDir() {
-		if fileStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(utils.Config.ContentFileTypes, filepath.Ext(filename)) {
-			contents, err := os.ReadFile(filename)
+	if !entryStat.IsDir() {
+		if entryStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(utils.Config.ContentFileTypes, filepath.Ext(path)) {
+			contents, err := os.ReadFile(path)
 			if err != nil {
 				slog.Error("failed to read file", "call", "os.ReadFile()", "err", err)
+				return
 			}
 			lineCountTotal := bytes.Count(contents, []byte("\n"))
 			blankLines := bytes.Count(contents, []byte("\n\n"))
@@ -56,25 +84,24 @@ func readEntry(filename string, stat *os.FileInfo, theWorks *data.CollectedInfo)
 		}
 	}
 
-	entry.FullPath = filename
-	entry.ParentDirID = filepath.Dir(filename)
-	entry.Name = filepath.Base(filename)
-	entry.IsDir = false
-	entry.Size = fileStat.Size()
+	entry.FullPath = path
+	if !isRoot {
+		entry.ParentDirID = filepath.Dir(path)
+	}
+	entry.Name = filepath.Base(path)
+	entry.IsDir = entryStat.IsDir()
+	entry.Size = entryStat.Size()
 
-	statT := fileStat.Sys().(*syscall.Stat_t)
-	entry.DevID = statT.Dev
-	entry.Inode = statT.Ino
-	entry.ModificationTime = time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
-	entry.AccessTime = time.Unix(statT.Atim.Sec, statT.Atim.Nsec)
-	entry.MetaDataChangeTime = time.Unix(statT.Ctim.Sec, statT.Ctim.Nsec)
+	entry.DevID = entryStatT.Dev
+	entry.Inode = entryStatT.Ino
+	entry.ModificationTime = time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)
+	entry.AccessTime = time.Unix(entryStatT.Atim.Sec, entryStatT.Atim.Nsec)
+	entry.MetaDataChangeTime = time.Unix(entryStatT.Ctim.Sec, entryStatT.Ctim.Nsec)
 
-	entry.OwnerID = statT.Uid
-	entry.GroupID = statT.Gid
+	entry.OwnerID = entryStatT.Uid
+	entry.GroupID = entryStatT.Gid
 	entry.Extension = filepath.Ext(entry.Name)
 	entry.FileType = filepath.Ext(entry.Name)
 
-	theWorks.Mu.Lock()
-	theWorks.EntryDetails = append(theWorks.EntryDetails, &entry)
-	theWorks.Mu.Unlock()
+	batchJobs <- &entry
 }

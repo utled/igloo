@@ -65,7 +65,10 @@ func main() {
 				return
 			}
 			utils.InitializeLogger(homeDir)
-			initial.StartInitialScan()
+			err := initial.StartInitialScan()
+			if err != nil {
+				panic(err)
+			}
 			maintain.StartIndexSync(homeDir)
 		case *refresh:
 			if details.isOngoing {

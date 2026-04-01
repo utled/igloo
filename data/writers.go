@@ -94,8 +94,13 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 			return fmt.Errorf("data.WriteFullEntries() -> statement.Exec() for path: %s %w", entry.FullPath, err)
 		}
 	}
+	
+	err = transaction.Commit()
+	if err != nil {
+		return fmt.Errorf("data.WriteFullEntries() -> transaction.Commit() %w", err)
+	}
 
-	return transaction.Commit()
+	return nil
 }
 
 func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) error {

@@ -24,15 +24,9 @@ func traverseDirectory(
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if os.IsPermission(err) {
-				slog.Debug("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
-			} else {
+			if !os.IsPermission(err) {
 				slog.Error(fmt.Sprintf("failed to walk path %s", path), "call", "filepath.Walkdir()", "err", err)
 			}
-			return nil
-		}
-
-		if path == root {
 			return nil
 		}
 
@@ -43,12 +37,10 @@ func traverseDirectory(
 		}
 
 		if d.IsDir() && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(path)) {
-			slog.Debug(fmt.Sprintf("excluded path %s", path), "call", "filepath.WalkDir() -> isDir && slices.Contains()")
 			return filepath.SkipDir
 		}
 
-		readJob := data.ReadJob{Path: path, Stat: &entryStat}
-		readJobs <- readJob
+		readJobs <- data.ReadJob{Path: path, Stat: &entryStat}
 
 		return nil
 	})
