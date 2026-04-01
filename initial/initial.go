@@ -3,21 +3,20 @@ package initial
 
 import (
 	"fmt"
-	"igloo/utils"
-	"igloo/data"
 	"log/slog"
 	"os"
 	"runtime"
 	"runtime/debug"
 	"sync"
 	"time"
+
+	"igloo/data"
+	"igloo/utils"
 )
 
 const (
-	directoryWorkers       = 10
-	fileWorkers            = 30
-	directoryJobBufferSize = 100
-	fileJobBufferSize      = 400
+	readWorkers       = 40
+	readJobBufferSize = 500
 )
 
 func StartInitialScan() {
@@ -29,14 +28,13 @@ func StartInitialScan() {
 	}
 	utils.CheckUpdateLogLevel()
 	syncPath := utils.Config.SyncPath
-	
+
 	theWorks := data.CollectedInfo{}
 
-	fileReadJobs := make(chan data.ReadJob, fileJobBufferSize)
-	dirReadJobs := make(chan data.ReadJob, directoryJobBufferSize)
+	readJobs := make(chan data.ReadJob, readJobBufferSize)
 
 	var wg sync.WaitGroup
-	totalWorkers := 1 + directoryWorkers + fileWorkers
+	totalWorkers := 1 + readWorkers
 	wg.Add(totalWorkers)
 
 	stat, err := os.Lstat(syncPath)
@@ -46,23 +44,18 @@ func StartInitialScan() {
 	if !stat.IsDir() {
 		slog.Error("initial sync path is not a directory", "call", "!stat.IsDir()")
 	}
-	readDir(syncPath, &stat, &theWorks, true)
 
-	for i := 0; i < directoryWorkers; i += 1 {
-		go dirWorker(dirReadJobs, &wg, &theWorks)
+	for i := 0; i < readWorkers; i += 1 {
+		go readWorker(readJobs, &wg, &theWorks)
 	}
-
-	for i := 0; i < fileWorkers; i += 1 {
-		go fileWorker(fileReadJobs, &wg, &theWorks)
-	}
-	go traverseDirectory(syncPath, dirReadJobs, fileReadJobs, &wg)
+	go traverseDirectory(syncPath, readJobs, &wg)
 
 	wg.Wait()
 	end := time.Now()
 	elapsed := end.Sub(start)
 
 	slog.Debug(fmt.Sprintf("initial scan duration: %s", elapsed))
-	
+
 	writeStart := time.Now()
 	err = writeFullIndex(&theWorks)
 	if err != nil {
@@ -70,7 +63,7 @@ func StartInitialScan() {
 	}
 	writeElapsed := time.Since(writeStart)
 	slog.Debug(fmt.Sprintf("initial db write duration: %s\n", writeElapsed))
-	
+
 	countOfEntries := len(theWorks.EntryDetails)
 	utils.Notify(fmt.Sprintf("Full file system scan completed\n%d entries have been indexed", countOfEntries), false)
 

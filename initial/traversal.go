@@ -15,14 +15,12 @@ import (
 
 func traverseDirectory(
 	root string,
-	dirJobs chan<- data.ReadJob,
-	fileJobs chan<- data.ReadJob,
+	readJobs chan<- data.ReadJob,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
 
-	defer close(dirJobs)
-	defer close(fileJobs)
+	defer close(readJobs)
 
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -44,19 +42,13 @@ func traverseDirectory(
 			return nil
 		}
 
-		isDir := d.IsDir()
-
-		if isDir && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(path)) {
+		if d.IsDir() && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(path)) {
 			slog.Debug(fmt.Sprintf("excluded path %s", path), "call", "filepath.WalkDir() -> isDir && slices.Contains()")
 			return filepath.SkipDir
 		}
 
 		readJob := data.ReadJob{Path: path, Stat: &entryStat}
-		if isDir {
-			dirJobs <- readJob
-		} else {
-			fileJobs <- readJob
-		}
+		readJobs <- readJob
 
 		return nil
 	})

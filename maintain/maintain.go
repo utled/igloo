@@ -16,7 +16,6 @@ import (
 func recordPID(pidPath string) error {
 	pid := os.Getpid()
 	err := os.WriteFile(pidPath, fmt.Appendf(nil, "%d", pid), 0o644)
-	//err :=	os.WriteFile(pidPath, []byte(fmt.Sprintf("%d", pid)), 0o644)
 	if err != nil {
 		return fmt.Errorf("maintain.recordPID() -> os.WriteFile() %w", err)
 	}
