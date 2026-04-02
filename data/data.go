@@ -37,7 +37,6 @@ type EntryCollection struct {
 	OwnerID              uint32    // os.fileStat.sys.Uid
 	GroupID              uint32    // os.fileStat.sys.Gid
 	Extension            string
-	FileType             string // MIME type
 	ContentSnippet       []byte // short extract of the files content. <= [:500]
 	FullTextIndex        []byte // the complete textual content of a document, stored in separate Full-Text Search index
 	LineCountTotal       int

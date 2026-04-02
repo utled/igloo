@@ -17,7 +17,7 @@ func InitializeDB(servicePath string) error {
 	}
 	defer CloseConnection(db)
 
-	err = createTables(db)
+	err = createTable(db)
 	if err != nil {
 		return err
 	}
@@ -25,20 +25,8 @@ func InitializeDB(servicePath string) error {
 	return nil
 }
 
-func createTables(db *sql.DB) error {
-	tableStatements := []string{
-		`create table if not exists full_scans (
-    		scan_id integer primary key,
-         	scan_start text,
-         	scan_end text,
-         	scan_duration text,
-         	directory_count int,
-         	file_count int,
-         	file_w_content_count int,
-         	ignored_entries_count int,
-         	indexing_completed bool
-         );`,
-		`create table if not exists entries (
+func createTable(db *sql.DB) error {
+	tableStatement := `create table if not exists entries (
 				dev_id int not null,
     		inode int not null,
     		path text not null,
@@ -52,21 +40,17 @@ func createTables(db *sql.DB) error {
     		owner_id int,
     		group_id int,
     		extension text,
-    		filetype text,
     		content_snippet text,
     		full_text text,
     		line_count_total int,
     		line_count_w_content int,
 				primary key(dev_id, inode, path)
-		) without rowid;`,
-	}
+		) without rowid;`
 
-	for _, statement := range tableStatements {
-		_, err := db.Exec(statement)
+		_, err := db.Exec(tableStatement)
 		if err != nil {
-			return fmt.Errorf("could not create table %s: \n%w", statement, err)
+			return fmt.Errorf("could not create table %s: \n%w", tableStatement, err)
 		}
-	}
 
 	return nil
 }

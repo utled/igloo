@@ -75,7 +75,6 @@ func readEntry(batchJobs chan<- *data.EntryCollection, path string, stat *os.Fil
 	entry.OwnerID = entryStatT.Uid
 	entry.GroupID = entryStatT.Gid
 	entry.Extension = filepath.Ext(entry.Name)
-	entry.FileType = filepath.Ext(entry.Name)
 
 	batchJobs <- &entry
 }

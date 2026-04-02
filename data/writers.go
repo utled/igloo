@@ -46,7 +46,7 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 
 	statement, err := transaction.Prepare(`insert into entries(
 		dev_id,
-    inode,
+		inode,
     path,
 		parent_directory,
 		name,
@@ -58,7 +58,6 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 		owner_id,
 		group_id,
 		extension,
-		filetype,
 		content_snippet,
 		full_text,
     line_count_total,
@@ -84,7 +83,6 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 			entry.OwnerID,
 			entry.GroupID,
 			entry.Extension,
-			entry.FileType,
 			entry.ContentSnippet,
 			entry.FullTextIndex,
 			entry.LineCountTotal,
@@ -123,7 +121,6 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 		owner_id = ?,
 		group_id = ?,
 		extension = ?,
-		filetype = ?,
 		content_snippet = ?,
 		full_text = ?,
     line_count_total = ?,
@@ -147,7 +144,6 @@ func UpdateEntriesWithContent(con *sql.DB, entryCollection []*EntryCollection) e
 			entry.OwnerID,
 			entry.GroupID,
 			entry.Extension,
-			entry.FileType,
 			entry.ContentSnippet,
 			entry.FullTextIndex,
 			entry.LineCountTotal,
@@ -170,8 +166,7 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 	}
 	defer transaction.Rollback()
 
-	statement, err := transaction.Prepare(`update entries 
-		set 
+	statement, err := transaction.Prepare(`update entries set 
 		path = ?,
 		parent_directory = ?,
 		name = ?,
@@ -183,7 +178,6 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 		owner_id = ?,
 		group_id = ?,
 		extension = ?,
-		filetype = ?
 		where dev_id = ? and inode = ?`)
 	if err != nil {
 		return fmt.Errorf("data.UpdateEntriesWithoutContent() -> transaction.Prepare() %w", err)
@@ -203,7 +197,6 @@ func UpdateEntriesWithoutContent(con *sql.DB, entryCollection []*EntryCollection
 			entry.OwnerID,
 			entry.GroupID,
 			entry.Extension,
-			entry.FileType,
 			entry.DevID,
 			entry.Inode,
 		)
