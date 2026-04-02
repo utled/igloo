@@ -43,7 +43,7 @@ func updateAfterSync(syncInfo *data.SyncInfo, con *sql.DB) {
 		data.DeleteEntries(con, syncInfo.Deletions)
 	}
 	if countOfNewEntries > 0 {
-		data.WriteFullEntries(con, syncInfo.NewEntries)
+		data.WriteFullEntries(con, syncInfo.NewEntries, nil)
 	}
 	if countOfUpdatesWContent > 0 {
 		data.UpdateEntriesWithContent(con, syncInfo.UpdatesWContent)

@@ -3,6 +3,7 @@ package data
 import (
 	"database/sql"
 	"fmt"
+	"sync"
 )
 
 func checkTableExists(con *sql.DB, tableName string) (tableExists bool, err error) {
@@ -37,7 +38,10 @@ func ClearExistingData(con *sql.DB) error {
 	return nil
 }
 
-func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
+func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection, wg *sync.WaitGroup) error {
+	if wg != nil {
+		defer wg.Done()
+	}
 	transaction, err := con.Begin()
 	if err != nil {
 		return fmt.Errorf("data.WriteFullEntries() -> con.Begin() %w", err)
@@ -62,7 +66,7 @@ func WriteFullEntries(con *sql.DB, entryCollection []*EntryCollection) error {
 		full_text,
     line_count_total,
     line_count_w_content)
-		values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+		values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("data.WriteFullEntries() -> transcation.Prepare() %w", err)
 	}

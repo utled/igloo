@@ -78,9 +78,10 @@ func StartInitialScan() error {
 
 	batchJobs := make(chan *data.EntryCollection, batchJobBufferSize)
 	var batchWG sync.WaitGroup
+	var writeWG sync.WaitGroup
 	batchWG.Add(batchWorkers)
 	for i := 0; i < batchWorkers; i += 1 {
-		go batchWorker(batchJobs, countChan, batchSize, &batchWG, con)
+		go batchWorker(batchJobs, countChan, batchSize, &batchWG, &writeWG, con)
 	}
 
 	readJobs := make(chan data.ReadJob, readJobBufferSize)
@@ -99,6 +100,7 @@ func StartInitialScan() error {
 
 	batchWG.Wait()
 	close(countChan)
+	writeWG.Wait()
 
 	end := time.Now()
 	elapsed := end.Sub(start)
