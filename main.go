@@ -8,9 +8,11 @@ import (
 	"strconv"
 	"syscall"
 
-	"igloo/initial"
-	"igloo/utils"
-	"igloo/maintain"
+	"igloo/config"
+	"igloo/db"
+	"igloo/indexer"
+	"igloo/logger"
+	"igloo/syncer"
 )
 
 type ongoingProcessDetails struct {
@@ -35,6 +37,56 @@ func getOngoingProcessDetails(homeDir string) (ongoingProcessDetails, error) {
 	return details, nil
 }
 
+func checkSetupStatus(homeDir string) (needsSetup bool, err error) {
+	servicePath := filepath.Join(homeDir, ".igloo")
+
+	var relevantPaths []string
+	relevantPaths = append(relevantPaths, servicePath)
+	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "tmp"))
+	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.db"))
+	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.conf"))
+	for _, path := range relevantPaths {
+		if _, err := os.Lstat(path); os.IsNotExist(err) {
+			needsSetup = true
+			return needsSetup, nil
+		}
+	}
+
+	return needsSetup, nil
+}
+
+func runSetup(homeDir string) error {
+	servicePath := filepath.Join(homeDir, ".igloo")
+	needsSetup, err := checkSetupStatus(homeDir)
+	if err != nil {
+		return err
+	}
+	if !needsSetup {
+		return nil
+	}
+
+	if _, err := os.Lstat(servicePath); os.IsNotExist(err) {
+		os.MkdirAll(servicePath, os.ModePerm)
+		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
+		db.InitializeDB(servicePath)
+		config.Initialize(homeDir)
+
+		return nil
+	}
+
+	if _, err := os.Lstat(filepath.Join(servicePath, "tmp")); os.IsNotExist(err) {
+		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
+	}
+	if _, err := os.Lstat(filepath.Join(servicePath, "igloo.db")); os.IsNotExist(err) {
+		db.InitializeDB(servicePath)
+	}
+	if _, err := os.Lstat(filepath.Join(servicePath, "igloo.conf")); os.IsNotExist(err) {
+		config.Initialize(homeDir)
+	}
+
+	return nil
+}
+
 func main() {
 	setupOnly := flag.Bool("setup", false, "runs the setup/initialization of db, config file et.c without starting indexing processes")
 	start := flag.Bool("start", false, "starts an initial scan of the whole file system (runs setup steps if needed)")
@@ -54,7 +106,7 @@ func main() {
 	if flag.NFlag() > 0 {
 		switch {
 		case *setupOnly:
-			err := utils.RunSetup(homeDir)
+			err := runSetup(homeDir)
 			if err != nil {
 				panic(err)
 			}
@@ -64,12 +116,12 @@ func main() {
 				fmt.Println("an instance of igloo is already running. call 'igloo --stop' to terminate the process")
 				return
 			}
-			utils.InitializeLogger(homeDir)
-			err := initial.StartInitialScan()
+			logger.Initialize(homeDir)
+			err := indexer.StartFullScan()
 			if err != nil {
 				panic(err)
 			}
-			maintain.StartIndexSync(homeDir)
+			syncer.StartIndexSync(homeDir)
 		case *refresh:
 			if details.isOngoing {
 				details.process.Signal(syscall.SIGUSR1)

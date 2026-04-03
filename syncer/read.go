@@ -1,38 +1,48 @@
-package maintain
+package syncer
 
 import (
 	"bytes"
 	"fmt"
-	"igloo/data"
-	"igloo/utils"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"sync"
+	"syscall"
 	"time"
+
+	"igloo/config"
+	"igloo/indexer"
 )
 
-func readWorker(readJobs <-chan data.SyncJob, syncInfo *data.SyncInfo, wg *sync.WaitGroup) {
+type syncJob struct {
+	path            string
+	isIndexed       bool
+	isContentChange bool
+	stat            *os.FileInfo
+	statT           syscall.Stat_t
+}
+
+func readWorker(readJobs <-chan syncJob, syncDetails *syncCollection, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for job := range readJobs {
-		readEntry(job, syncInfo)
+		readEntry(job, syncDetails)
 	}
 }
 
 // readEntry performs the actual collection of a file system entries' metadata
 // and reads file contents for filetypes defined in the program config
 // based on the readjobs' parameteres it decides what output struct to store the data in (new entry, update with content, update without content)
-func readEntry(syncJob data.SyncJob, syncInfo *data.SyncInfo) {
-	entryStat := *syncJob.Stat
-	statT := syncJob.StatT
+func readEntry(syncJob syncJob, syncDetails *syncCollection) {
+	entryStat := *syncJob.stat
+	statT := syncJob.statT
 
-	entry := data.EntryCollection{}
+	entry := indexer.EntryCollection{}
 
-	entry.FullPath = syncJob.Path
-	entry.ParentDirID = filepath.Dir(syncJob.Path)
-	entry.Name = filepath.Base(syncJob.Path)
+	entry.FullPath = syncJob.path
+	entry.ParentDirID = filepath.Dir(syncJob.path)
+	entry.Name = filepath.Base(syncJob.path)
 	entry.IsDir = entryStat.IsDir()
 	entry.Size = entryStat.Size()
 
@@ -46,10 +56,10 @@ func readEntry(syncJob data.SyncJob, syncInfo *data.SyncInfo) {
 	entry.GroupID = statT.Gid
 
 	if !entryStat.IsDir() && entryStat.Mode().Type()&os.ModeSymlink == 0 {
-		if slices.Contains(utils.Config.ContentFileTypes, filepath.Ext(syncJob.Path)) && syncJob.IsContentChange {
-			contents, err := os.ReadFile(syncJob.Path)
+		if slices.Contains(config.Details.ContentFileTypes, filepath.Ext(syncJob.path)) && syncJob.isContentChange {
+			contents, err := os.ReadFile(syncJob.path)
 			if err != nil {
-				slog.Error(fmt.Sprintf("failed to read file %s", syncJob.Path), "call", "os.ReadFile()", "err", err)
+				slog.Error(fmt.Sprintf("failed to read file %s", syncJob.path), "call", "os.ReadFile()", "err", err)
 			}
 			lineCountTotal := bytes.Count(contents, []byte("\n"))
 			blankLines := bytes.Count(contents, []byte("\n\n"))
@@ -74,19 +84,19 @@ func readEntry(syncJob data.SyncJob, syncInfo *data.SyncInfo) {
 			entry.LineCountWithContent = lineCountWithContent
 		}
 	}
-	if !syncJob.IsIndexed {
-		syncInfo.Mu.Lock()
-		defer syncInfo.Mu.Unlock()
-		syncInfo.NewEntries = append(syncInfo.NewEntries, &entry)
+	if !syncJob.isIndexed {
+		syncDetails.mu.Lock()
+		defer syncDetails.mu.Unlock()
+		syncDetails.newEntries = append(syncDetails.newEntries, &entry)
 		return
 	}
-	if syncJob.IsContentChange {
-		syncInfo.Mu.Lock()
-		defer syncInfo.Mu.Unlock()
-		syncInfo.UpdatesWContent = append(syncInfo.UpdatesWContent, &entry)
+	if syncJob.isContentChange {
+		syncDetails.mu.Lock()
+		defer syncDetails.mu.Unlock()
+		syncDetails.updatesWContent = append(syncDetails.updatesWContent, &entry)
 		return
 	}
-	syncInfo.Mu.Lock()
-	defer syncInfo.Mu.Unlock()
-	syncInfo.UpdatesWOContent = append(syncInfo.UpdatesWOContent, &entry)
+	syncDetails.mu.Lock()
+	defer syncDetails.mu.Unlock()
+	syncDetails.updatesWOContent = append(syncDetails.updatesWOContent, &entry)
 }

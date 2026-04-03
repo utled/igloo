@@ -1,9 +1,7 @@
-package maintain
+package syncer
 
 import (
 	"fmt"
-	"igloo/data"
-	"igloo/utils"
 	"io/fs"
 	"log/slog"
 	"os"
@@ -13,24 +11,26 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"igloo/config"
 )
 
-func scanWorker(scanJobs <-chan data.EntryHeader, readJobs chan<- data.SyncJob, indexedEntries map[string]data.EntryHeader, wg *sync.WaitGroup) {
+func scanWorker(scanJobs <-chan entryHeader, readJobs chan<- syncJob, indexedEntries map[string]entryHeader, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for job := range scanJobs {
-		err := scanUpdatedDir(readJobs, job.Path, indexedEntries)
+		err := scanUpdatedDir(readJobs, job.path, indexedEntries)
 		if err != nil {
-			slog.Error("", "call", "maintain.scanUpdatedDir()", "err", err)
+			slog.Error("", "call", "syncer.scanUpdatedDir()", "err", err)
 		}
 	}
 }
 
 // scanUpdatedDir scans the direct entries (does not crawl the file system tree to lower levels) of a directory that has been identified as changed
 // categorizes the entries and produce parameterized readjobs with the entry stat and stat_t details.
-func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries map[string]data.EntryHeader) error {
+func scanUpdatedDir(readJobs chan<- syncJob, dirPath string, indexedEntries map[string]entryHeader) error {
 	fileSysEntries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return fmt.Errorf("maintain.scanUpdatedDir() -> os.ReadDir() for path %s %w", dirPath, err)
+		return fmt.Errorf("syncer.scanUpdatedDir() -> os.ReadDir() for path %s %w", dirPath, err)
 	}
 
 	for _, entry := range fileSysEntries {
@@ -38,12 +38,12 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries
 
 		entryStat, err := os.Lstat(filePath)
 		if err != nil {
-			return fmt.Errorf("maintain.scanUpdatedDir() -> os.Lstat() for path %s %w", filePath, err)
+			return fmt.Errorf("syncer.scanUpdatedDir() -> os.Lstat() for path %s %w", filePath, err)
 		}
 
 		isDir := entryStat.IsDir()
 
-		if isDir && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(filePath)) {
+		if isDir && slices.Contains(config.Details.ExcludedEntries, filepath.Base(filePath)) {
 			continue
 		}
 
@@ -54,30 +54,30 @@ func scanUpdatedDir(readJobs chan<- data.SyncJob, dirPath string, indexedEntries
 		indexedEntry, isIndexed := indexedEntries[uniqueKey]
 		isContentChange := false
 		if !isDir {
-			if !isIndexed || entryMtim.Equal(indexedEntry.ModificationTime) {
+			if !isIndexed || entryMtim.Equal(indexedEntry.modificationTime) {
 				isContentChange = true
 			}
 		}
-		
-		readJobs <- data.SyncJob{
-			Path: filePath,
-			IsIndexed: isIndexed,
-			IsContentChange: isContentChange,
-			Stat: &entryStat,
-			StatT: *entryStatT,
+
+		readJobs <- syncJob{
+			path:            filePath,
+			isIndexed:       isIndexed,
+			isContentChange: isContentChange,
+			stat:            &entryStat,
+			statT:           *entryStatT,
 		}
 	}
 
 	return nil
 }
 
-// newDirWorker is responsible for traversing newly created directories and categorize new file system entries to produce readjobs of the entries
-func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, wg *sync.WaitGroup, indexedEntries map[string]data.EntryHeader) {
+// newDirWorker is route newDirJobs to the traverseNewDir function which starts the process of collecting the details for indexing the new directory
+func newDirWorker(newDirJobs <-chan string, readJobs chan<- syncJob, wg *sync.WaitGroup, indexedEntries map[string]entryHeader) {
 	defer wg.Done()
 	for path := range newDirJobs {
 		err := traverseNewDir(readJobs, path, indexedEntries)
 		if err != nil {
-			slog.Error("", "call", "maintain.traverseNewDir()", "err", err)
+			slog.Error("", "call", "syncer.traverseNewDir()", "err", err)
 		}
 	}
 }
@@ -85,9 +85,9 @@ func newDirWorker(newDirJobs <-chan string, readJobs chan<- data.SyncJob, wg *sy
 // traverseNewDir crawls a newly created directory and it's file system tree
 // categorizes the entries and produces parameterized readjobs with the entries stat and stat_t details.
 func traverseNewDir(
-	readJobs chan<- data.SyncJob, 
-	startPath string, 
-	indexedEntries map[string]data.EntryHeader, 
+	readJobs chan<- syncJob,
+	startPath string,
+	indexedEntries map[string]entryHeader,
 ) error {
 	err := filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -99,7 +99,7 @@ func traverseNewDir(
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(path)) {
+		if d.IsDir() && slices.Contains(config.Details.ExcludedEntries, filepath.Base(path)) {
 			slog.Debug(fmt.Sprintf("excluded path %s", path), "call", "filepath.WalkDir() -> isDir && slices.Contains()")
 			return filepath.SkipDir
 		}
@@ -119,22 +119,22 @@ func traverseNewDir(
 			if !isIndexed {
 				isContentChange = true
 			} else {
-				entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)				
-				isContentChange = !entryMtim.Equal(indexedEntry.ModificationTime)
+				entryMtim := time.Unix(entryStatT.Mtim.Sec, entryStatT.Mtim.Nsec)
+				isContentChange = !entryMtim.Equal(indexedEntry.modificationTime)
 			}
 		}
 
-		readJobs <- data.SyncJob{
-			Path: path,
-			IsIndexed: isIndexed, 
-			IsContentChange: isContentChange,
-			Stat: &entryStat,
-			StatT: *entryStatT,
+		readJobs <- syncJob{
+			path:            path,
+			isIndexed:       isIndexed,
+			isContentChange: isContentChange,
+			stat:            &entryStat,
+			statT:           *entryStatT,
 		}
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("maintain.traverseNewDir() -> filepath.Walkdir() for startpath %s %w", startPath, err)
+		return fmt.Errorf("syncer.traverseNewDir() -> filepath.Walkdir() for startpath %s %w", startPath, err)
 	}
 
 	return nil
@@ -145,26 +145,24 @@ func traverseNewDir(
 // a scanJob to read the contents of the directory to identify what has changed at lower levels
 // if the directory is not previously indexed (with the same unique key, i.e. dev_id+inode+path), it produces a newDirJob to perform a full scan of the directory tree below it
 func traverseDirectories(
-	scanJobs chan<- data.EntryHeader,
+	scanJobs chan<- entryHeader,
 	newDirJobs chan<- string,
-	readJobs chan<- data.SyncJob,
+	readJobs chan<- syncJob,
 	startPath string,
-	indexedEntries map[string]data.EntryHeader,
+	indexedEntries map[string]entryHeader,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
 
 	err := filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if os.IsPermission(err) {
-				slog.Debug("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
-			} else {
+			if !os.IsPermission(err) {
 				slog.Error(fmt.Sprintf("failed to walk path %s", path), "call", "filepath.Walkdir()", "err", err)
 			}
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(path)) {
+		if d.IsDir() && slices.Contains(config.Details.ExcludedEntries, filepath.Base(path)) {
 			return filepath.SkipDir
 		}
 
@@ -183,14 +181,14 @@ func traverseDirectories(
 			} else {
 				mTim := time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
 				cTim := time.Unix(statT.Ctim.Sec, statT.Ctim.Nsec)
-				if !indexedEntry.ModificationTime.Equal(mTim) || !indexedEntry.MetaDataChangeTime.Equal(cTim) {
+				if !indexedEntry.modificationTime.Equal(mTim) || !indexedEntry.metaDataChangeTime.Equal(cTim) {
 					scanJobs <- indexedEntry
-					readJobs <- data.SyncJob{
-						Path: path, 
-						IsIndexed: true, 
-						IsContentChange: false, 
-						Stat: &entryStat, 
-						StatT: *statT,
+					readJobs <- syncJob{
+						path:            path,
+						isIndexed:       true,
+						isContentChange: false,
+						stat:            &entryStat,
+						statT:           *statT,
 					}
 				}
 			}
@@ -198,7 +196,6 @@ func traverseDirectories(
 
 		return nil
 	})
-
 	if err != nil {
 		slog.Error("failed to walk directory", "call", "filepath.WalkDir()", "err", err)
 	}

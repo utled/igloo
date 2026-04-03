@@ -1,16 +1,18 @@
-// Package utils gathers utility functionality not part of the main indexing process
-package utils
+// Package logger manages setup of log settings and updates of log level
+package logger
 
 import (
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
+
+	"igloo/config"
 )
 
 var LogLevel = &slog.LevelVar{}
 
-func InitializeLogger(homeDir string) {
+func Initialize(homeDir string) {
 	logFilePath := filepath.Join(homeDir, ".igloo/igloo.log")
 	if _, err := os.Stat(logFilePath); os.IsNotExist(err) {
 		file, err := os.Create(logFilePath)
@@ -37,12 +39,11 @@ func InitializeLogger(homeDir string) {
 	slog.SetDefault(logger)
 	slog.Info("logger initialized", "call", "slog.SetDefault()")
 
-
 	CheckUpdateLogLevel()
 }
 
 func CheckUpdateLogLevel() {
-	switch Config.LogLevel {
+	switch config.Details.LogLevel {
 	case "debug":
 		if LogLevel.Level() != slog.LevelDebug {
 			slog.Info("Switching to DEBUG mode")

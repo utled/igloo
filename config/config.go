@@ -1,5 +1,5 @@
-// Package utils gathers utility functionality not part of the main indexing process
-package utils
+// Package config defines config defaults and manages interactions with the config file on disk
+package config
 
 import (
 	"encoding/json"
@@ -78,7 +78,7 @@ var contentFileTypes = []string{
 func composeExclusions(homePath string) (exclusions []string, err error) {
 	entries, err := os.ReadDir(homePath)
 	if err != nil {
-		return exclusions, fmt.Errorf("failed to read home directory:%v", err)
+		return exclusions, fmt.Errorf("config.composeExclusions() -> os.ReadDir() %w", err)
 	}
 
 	for _, entry := range entries {
@@ -92,9 +92,9 @@ func composeExclusions(homePath string) (exclusions []string, err error) {
 	return exclusions, nil
 }
 
-var Config ConfigDetails
+var Details ConfigCollection
 
-type ConfigDetails struct {
+type ConfigCollection struct {
 	SyncPath         string   `json:"SyncPath"`         // defaults to system root directory
 	WaitBetweenSyncs int      `json:"WaitBetweenSyncs"` // defaults to 1 second
 	LogLevel         string   `json:"LogLevel"`         // default to "warning"
@@ -103,7 +103,7 @@ type ConfigDetails struct {
 	LastModification time.Time
 }
 
-func InitializeConfig(homePath string) error {
+func Initialize(homePath string) error {
 	servicePath := filepath.Join(homePath, ".igloo")
 	configFilepath := filepath.Join(servicePath, "igloo.conf")
 	if _, err := os.Stat(configFilepath); err != nil {
@@ -112,7 +112,7 @@ func InitializeConfig(homePath string) error {
 			return err
 		}
 
-		defaultConfig := ConfigDetails{
+		defaultConfig := ConfigCollection{
 			SyncPath:         "/",
 			WaitBetweenSyncs: 1,
 			LogLevel:         "warning",
@@ -138,24 +138,24 @@ func InitializeConfig(homePath string) error {
 	return nil
 }
 
-func readConfig() (newConfig ConfigDetails, err error) {
+func readNewConfig() (newConfig ConfigCollection, err error) {
 	homePath, err := os.UserHomeDir()
 	if err != nil {
-		return newConfig, fmt.Errorf("failed to identify user home directory:%v", err)
+		return newConfig, fmt.Errorf("config.readNewConfig() -> os.UserHomeDir() %w", err)
 	}
 	configPath := filepath.Join(homePath, ".igloo/igloo.conf")
 	configFile, err := os.ReadFile(configPath)
 	if err != nil {
-		return newConfig, fmt.Errorf("failed to read config file:%v", err)
+		return newConfig, fmt.Errorf("config.readNewConfig() -> os.ReadFile() %w", err)
 	}
 
 	if err = json.Unmarshal(configFile, &newConfig); err != nil {
-		return newConfig, fmt.Errorf("failed to unmarshal config file:%v", err)
+		return newConfig, fmt.Errorf("config.readNewConfig() -> json.Unmarshal() %w", err)
 	}
 
 	fileStat, err := os.Lstat(configPath)
 	if err != nil {
-		return newConfig, fmt.Errorf("failed to read config metadata %w", err)
+		return newConfig, fmt.Errorf("config.readNewConfig() -> os.Lstat() %w", err)
 	}
 	newConfig.LastModification = fileStat.ModTime()
 
@@ -167,28 +167,28 @@ func readConfig() (newConfig ConfigDetails, err error) {
 	return newConfig, nil
 }
 
-func GetConfig() error {
-	newConfig, err := readConfig()
+func Read() error {
+	newConfig, err := readNewConfig()
 	if err != nil {
 		return err
 	}
-	Config = newConfig
+	Details = newConfig
 
 	return nil
 }
 
-func CheckUpdateConfig() (requiresRefresh bool, err error) {
-	newConfig, err := readConfig()
+func CheckUpdate() (isChanged bool, err error) {
+	newConfig, err := readNewConfig()
 	if err != nil {
-		return requiresRefresh, err
+		return isChanged, err
 	}
 
-	if newConfig.LastModification.After(Config.LastModification) {
-		if strings.Compare(Config.SyncPath, newConfig.SyncPath) != 0 || !slices.Equal(Config.ExcludedEntries, newConfig.ExcludedEntries) || !slices.Equal(Config.ContentFileTypes, newConfig.ContentFileTypes) {
-			requiresRefresh = true
+	if newConfig.LastModification.After(Details.LastModification) {
+		if strings.Compare(Details.SyncPath, newConfig.SyncPath) != 0 || !slices.Equal(Details.ExcludedEntries, newConfig.ExcludedEntries) || !slices.Equal(Details.ContentFileTypes, newConfig.ContentFileTypes) {
+			isChanged = true
 		}
-		Config = newConfig
+		Details = newConfig
 	}
 
-	return requiresRefresh, nil
+	return isChanged, nil
 }

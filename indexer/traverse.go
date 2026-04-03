@@ -1,4 +1,4 @@
-package initial
+package indexer
 
 import (
 	"fmt"
@@ -9,13 +9,15 @@ import (
 	"slices"
 	"sync"
 
-	"igloo/data"
-	"igloo/utils"
+	"igloo/config"
 )
 
+// traverseDirectory crawls the whole filesystem tree from the top level path defined in the config file
+// it excludes the paths defined as out of scope (root, boot, proc et.c. + user defined exclusions)
+// before producing jobs to the readJob channel to start collecting entry details
 func traverseDirectory(
 	root string,
-	readJobs chan<- data.ReadJob,
+	readJobs chan<- readJob,
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
@@ -36,11 +38,11 @@ func traverseDirectory(
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(utils.Config.ExcludedEntries, filepath.Base(path)) {
+		if d.IsDir() && slices.Contains(config.Details.ExcludedEntries, filepath.Base(path)) {
 			return filepath.SkipDir
 		}
 
-		readJobs <- data.ReadJob{Path: path, Stat: &entryStat}
+		readJobs <- readJob{path: path, stat: &entryStat}
 
 		return nil
 	})

@@ -1,4 +1,4 @@
-package initial
+package indexer
 
 import (
 	"bytes"
@@ -11,24 +11,31 @@ import (
 	"syscall"
 	"time"
 
-	"igloo/data"
-	"igloo/utils"
+	"igloo/config"
 )
 
-func readWorker(readJobs <-chan data.ReadJob, batchJobs chan<- *data.EntryCollection, wg *sync.WaitGroup) {
+type readJob struct {
+	path string
+	stat *os.FileInfo
+}
+
+func readWorker(readJobs <-chan readJob, batchJobs chan<- *EntryCollection, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for job := range readJobs {
-		readEntry(batchJobs, job.Path, job.Stat, false)
+		readEntry(batchJobs, job.path, job.stat, false)
 	}
 }
 
-func readEntry(batchJobs chan<- *data.EntryCollection, path string, stat *os.FileInfo, isRoot bool) {
-	entry := data.EntryCollection{}
+// readEntry reads the entry details from Stat, collects and reads Stat_t 
+// and reads the file contents for the filetypes defined in the config file
+// with the details collected it sends the data through the batchJobs channel to be batched before writing to DB.
+func readEntry(batchJobs chan<- *EntryCollection, path string, stat *os.FileInfo, isRoot bool) {
+	entry := EntryCollection{}
 	entryStat := *stat
 	entryStatT := entryStat.Sys().(*syscall.Stat_t)
 
 	if !entryStat.IsDir() {
-		if entryStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(utils.Config.ContentFileTypes, filepath.Ext(path)) {
+		if entryStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(config.Details.ContentFileTypes, filepath.Ext(path)) {
 			contents, err := os.ReadFile(path)
 			if err != nil {
 				slog.Error("failed to read file", "call", "os.ReadFile()", "err", err)

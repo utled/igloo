@@ -1,5 +1,5 @@
-// Package utils gathers utility functionality not part of the main indexing process
-package utils
+// Package notify interacts with the os DBus API to send os notifications
+package notify
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"os/exec"
 )
 
-func Notify(body string, persistent bool) {
+func Send(body string, persistent bool) {
 	programName := "Igloo"
 
 	var timeout int32

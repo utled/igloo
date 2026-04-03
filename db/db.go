@@ -13,13 +13,13 @@ import (
 func InitializeDB(servicePath string) error {
 	db, err := CreateConnection()
 	if err != nil {
-		return err
+		return fmt.Errorf("db.InitializwDB() %w", err)
 	}
 	defer CloseConnection(db)
 
 	err = createTable(db)
 	if err != nil {
-		return err
+		return fmt.Errorf("db.InitializeDB() -> createTable() %w", err)
 	}
 
 	return nil
@@ -47,10 +47,10 @@ func createTable(db *sql.DB) error {
 				primary key(dev_id, inode, path)
 		) without rowid;`
 
-		_, err := db.Exec(tableStatement)
-		if err != nil {
-			return fmt.Errorf("could not create table %s: \n%w", tableStatement, err)
-		}
+	_, err := db.Exec(tableStatement)
+	if err != nil {
+		return fmt.Errorf("db.createTable() for statement: %s %w", tableStatement, err)
+	}
 
 	return nil
 }
@@ -61,9 +61,10 @@ func CreateConnection() (*sql.DB, error) {
 		return nil, err
 	}
 	dbPath := filepath.Join(homePath, ".igloo", "igloo.db")
-	db, err := sql.Open("sqlite3", dbPath+"?_journal_mode=WAL")
+	dbPathWithWAL := dbPath+"?_journal_mode=WAL"
+	db, err := sql.Open("sqlite3", dbPathWithWAL)
 	if err != nil {
-		return nil, fmt.Errorf("error opening database: %v", err)
+		return nil, fmt.Errorf("db.CreateConnection() -> sql.Open() for path %s %w", dbPathWithWAL, err)
 	}
 
 	return db, nil
@@ -72,7 +73,7 @@ func CreateConnection() (*sql.DB, error) {
 func CloseConnection(db *sql.DB) error {
 	err := db.Close()
 	if err != nil {
-		return fmt.Errorf("faIled to close db connection: %v", err)
+		return fmt.Errorf("db.CloseConnection() %w", err)
 	}
 
 	return nil
