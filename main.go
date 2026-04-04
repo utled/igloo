@@ -42,6 +42,7 @@ func checkSetupStatus(homeDir string) (needsSetup bool, err error) {
 
 	var relevantPaths []string
 	relevantPaths = append(relevantPaths, servicePath)
+	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "log_archive"))
 	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "tmp"))
 	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.db"))
 	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.conf"))
@@ -67,6 +68,7 @@ func runSetup(homeDir string) error {
 
 	if _, err := os.Lstat(servicePath); os.IsNotExist(err) {
 		os.MkdirAll(servicePath, os.ModePerm)
+		os.MkdirAll(filepath.Join(servicePath, "log_archive"), os.ModePerm)
 		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
 		db.InitializeDB(servicePath)
 		config.Initialize(homeDir)
