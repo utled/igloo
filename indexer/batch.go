@@ -13,7 +13,7 @@ import (
 func batchWorker(batchJobs <-chan *EntryCollection, countChan chan<- int, batchSize int, batchWH *sync.WaitGroup, writeWG *sync.WaitGroup, con *sql.DB) {
 	defer batchWH.Done()
 
-	var batchedEntries []*EntryCollection
+	batchedEntries := make([]*EntryCollection, 0, batchSize)
 	var batchCount int
 	for job := range batchJobs {
 		batchedEntries = append(batchedEntries, job)
