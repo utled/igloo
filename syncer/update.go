@@ -35,7 +35,7 @@ func updateAfterSync(syncDetails *syncCollection, con *sql.DB) {
 		updateEntriesWithoutContent(con, syncDetails.updatesWOContent)
 	}
 	elapsed := time.Since(updateDBStart)
-	slog.Debug(fmt.Sprintf("Updates to DB took: %s", elapsed), "call", "syncer.updateAfterSync()")
+	slog.Info(fmt.Sprintf("Updates to DB took: %s", elapsed), "call", "syncer.updateAfterSync()")
 }
 
 func updateEntriesWithContent(con *sql.DB, entryCollection []*indexer.EntryCollection) error {

@@ -17,10 +17,16 @@ import (
 
 func scanWorker(scanJobs <-chan entryHeader, readJobs chan<- syncJob, indexedEntries map[string]entryHeader, wg *sync.WaitGroup) {
 	defer wg.Done()
+	counter := 0
 	for job := range scanJobs {
 		err := scanUpdatedDir(readJobs, job.path, indexedEntries)
 		if err != nil {
 			slog.Error("", "call", "syncer.scanUpdatedDir()", "err", err)
+		}
+		counter++
+		if counter == 20 {
+			time.Sleep(1 * time.Millisecond)
+			counter = 0
 		}
 	}
 }
@@ -74,10 +80,16 @@ func scanUpdatedDir(readJobs chan<- syncJob, dirPath string, indexedEntries map[
 // newDirWorker is route newDirJobs to the traverseNewDir function which starts the process of collecting the details for indexing the new directory
 func newDirWorker(newDirJobs <-chan string, readJobs chan<- syncJob, wg *sync.WaitGroup, indexedEntries map[string]entryHeader) {
 	defer wg.Done()
+	counter := 0
 	for path := range newDirJobs {
 		err := traverseNewDir(readJobs, path, indexedEntries)
 		if err != nil {
 			slog.Error("", "call", "syncer.traverseNewDir()", "err", err)
+		}
+		counter++
+		if counter == 20 {
+			time.Sleep(1 * time.Millisecond)
+			counter = 0
 		}
 	}
 }
@@ -91,16 +103,13 @@ func traverseNewDir(
 ) error {
 	err := filepath.WalkDir(startPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			if os.IsPermission(err) {
-				slog.Debug("", "call", "filepath.WalkDir() -> os.IsPermission()", "err", err)
-			} else {
+			if !os.IsPermission(err) {
 				slog.Error(fmt.Sprintf("failed to walk path %s", path), "call", "filepath.Walkdir()", "err", err)
 			}
 			return nil
 		}
 
 		if d.IsDir() && slices.Contains(config.Details.ExcludedEntries, filepath.Base(path)) {
-			slog.Debug(fmt.Sprintf("excluded path %s", path), "call", "filepath.WalkDir() -> isDir && slices.Contains()")
 			return filepath.SkipDir
 		}
 

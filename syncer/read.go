@@ -26,8 +26,14 @@ type syncJob struct {
 
 func readWorker(readJobs <-chan syncJob, syncDetails *syncCollection, wg *sync.WaitGroup) {
 	defer wg.Done()
+	counter := 0
 	for job := range readJobs {
 		readEntry(job, syncDetails)
+		counter++
+		if counter == 10 {
+			time.Sleep(1 * time.Millisecond)
+			counter = 0
+		}
 	}
 }
 

@@ -38,7 +38,8 @@ func StartIndexSync(homeDir string) {
 		os.Exit(1)
 	}
 
-	syncChan := make(chan struct{})
+	endSyncChan := make(chan struct{})
+	syncCompletedChan := make(chan struct{})
 	signalChan := make(chan os.Signal, 1)
 	exitChan := make(chan struct{})
 	signal.Notify(signalChan, os.Interrupt, syscall.SIGTERM, syscall.SIGUSR1)
@@ -47,27 +48,27 @@ func StartIndexSync(homeDir string) {
 		signal := <-signalChan
 		switch signal {
 		case syscall.SIGUSR1:
-			isSyncActive = false
+			close(endSyncChan)
 			notify.Send("Waiting for sync to finish", false)
-			<-syncChan
+			<-syncCompletedChan
 			notify.Send("Starting full scan", false)
-			indexer.StartFullScan()
+			indexer.RunFullScan()
 			isSyncActive = true
 			notify.Send("Restarting sync", false)
-			syncChan = make(chan struct{})
-			go orchestrateSync(&isSyncActive, syncChan)
+			syncCompletedChan = make(chan struct{})
+			go orchestrateSync(endSyncChan, syncCompletedChan)
 		case os.Interrupt, syscall.SIGTERM:
-			isSyncActive = false
+			close(endSyncChan)
 			slog.Info("closing down sync processes.")
-			<-syncChan
+			<-syncCompletedChan
 			slog.Info("exiting program.")
 			notify.Send("Service has been stopped", false)
 			close(exitChan)
 		}
 	}()
 
-	isSyncActive = true
-	go orchestrateSync(&isSyncActive, syncChan)
+	endSyncChan = make(chan struct{})
+	go orchestrateSync(endSyncChan, syncCompletedChan)
 
 	<-exitChan
 	os.Exit(0)

@@ -6,6 +6,7 @@ import (
 	"os"
 	"sync"
 	"syscall"
+	"time"
 )
 
 type deletionJob struct {
@@ -44,8 +45,14 @@ func deleteEntries(con *sql.DB, deletionEntries []*deletionJob) error {
 
 func deletionWorker(delJobs <-chan deletionJob, syncDetails *syncCollection, wg *sync.WaitGroup) {
 	defer wg.Done()
+	counter := 0
 	for entry := range delJobs {
 		checkDelete(entry, syncDetails)
+		counter++
+		if counter == 20 {
+			time.Sleep(1 * time.Millisecond)
+			counter = 0
+		}
 	}
 }
 

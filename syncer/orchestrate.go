@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"math/rand/v2"
 	"runtime"
 	"runtime/debug"
 	"strconv"
@@ -17,14 +18,14 @@ import (
 )
 
 const (
-	deletionJobBufferSize = 50
-	scanJobBufferSize     = 50
-	readJobBufferSize     = 400
-	newDirJobBufferSize   = 10
-	deletionWorkers       = 20
-	entryScanners         = 20
-	entryReaders          = 30
-	newDirWorkers         = 5
+	deletionJobBufferSize = 10
+	scanJobBufferSize     = 10
+	readJobBufferSize     = 10
+	newDirJobBufferSize   = 4
+	deletionWorkers       = 5
+	entryScanners         = 5
+	entryReaders          = 5
+	newDirWorkers         = 2
 )
 
 // startSync sets up channels and workgroups to balance the workload of the syncs subprocesses
@@ -48,23 +49,27 @@ func startSync(startPath string, indexedEntries map[string]entryHeader, syncDeta
 	deletionProducerWG.Add(1)
 	go produceDeletionJobs(deletionJobs, indexedEntries, &deletionProducerWG)
 
-	scannerWG.Add(entryScanners)
-	for range entryScanners {
-		go scanWorker(scanJobs, readJobs, indexedEntries, &scannerWG)
-	}
-
 	scannerWG.Add(newDirWorkers)
 	for range newDirWorkers {
 		go newDirWorker(newDirJobs, readJobs, &scannerWG, indexedEntries)
 	}
 
+	producerWG.Add(1)
+	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, indexedEntries, &producerWG)
+
+	scannerWG.Add(entryScanners)
+	for range entryScanners {
+		go scanWorker(scanJobs, readJobs, indexedEntries, &scannerWG)
+		jitter := time.Duration(rand.IntN(10) * int(time.Millisecond))
+		time.Sleep(5 * time.Millisecond + jitter)
+	}
+
 	readerWG.Add(entryReaders)
 	for range entryReaders {
 		go readWorker(readJobs, syncDetails, &readerWG)
+		jitter := time.Duration(rand.IntN(10) * int(time.Millisecond))
+		time.Sleep(5 * time.Millisecond + jitter)
 	}
-
-	producerWG.Add(1)
-	go traverseDirectories(scanJobs, newDirJobs, readJobs, startPath, indexedEntries, &producerWG)
 
 	producerWG.Wait()
 	close(scanJobs)
@@ -109,13 +114,13 @@ func getIndexedEntries(con *sql.DB) (indexedEntries map[string]entryHeader, err 
 			&details.metaDataChangeTime,
 		)
 		if err != nil {
-			return indexedEntries, fmt.Errorf("syncer.etIndexedEntries() -> response.Scan() %w", err)
+			return indexedEntries, fmt.Errorf("syncer.getIndexedEntries() -> response.Scan() %w", err)
 		}
 		uniqueKey := strconv.FormatUint(details.devID, 10) + strconv.FormatUint(details.inode, 10) + details.path
 		indexedEntries[uniqueKey] = details
 	}
 	if err = response.Err(); err != nil {
-		return indexedEntries, fmt.Errorf("syncer.etIndexedEntries() -> response.Next() %w", err)
+		return indexedEntries, fmt.Errorf("syncer.getIndexedEntries() -> response.Next() %w", err)
 	}
 
 	return indexedEntries, nil
@@ -133,49 +138,53 @@ type syncCollection struct {
 // collects the program config and current index to identify deletions/changes/additions against
 // decides the sync scope based on the config
 // waits for sync completion before triggering index updates
-func orchestrateSync(isSyncActive *bool, syncChan chan<- struct{}) error {
-	defer close(syncChan)
+func orchestrateSync(endSyncChan <-chan struct{}, syncCompletedChan chan<- struct{}) error {
+	defer close(syncCompletedChan)
 
-	for *isSyncActive {
-		requiresRefresh, err := config.CheckUpdate()
-		if err != nil {
-			return fmt.Errorf("syncer.orchestrateSync -> utils.GetConfig() %w", err)
-		}
-		logger.CheckUpdateLogLevel()
-		if requiresRefresh {
-			indexer.StartFullScan()
-		}
-
-		startTime := time.Now()
-
-		con, err := db.CreateConnection()
-		if err != nil {
-			return fmt.Errorf("syncer.orchestrateSync() -> db.CreateConnection() %w", err)
-		}
-		defer func(con *sql.DB) {
-			err = db.CloseConnection(con)
+	for {
+		select {
+		case <-endSyncChan:
+			return nil
+		default:
+			requiresRefresh, err := config.CheckUpdate()
 			if err != nil {
-				slog.Error("failed to close db connection", "call", "db.CloseConnection()", "err", err)
+				return fmt.Errorf("syncer.orchestrateSync -> utils.GetConfig() %w", err)
 			}
-		}(con)
+			logger.CheckUpdateLogLevel()
+			if requiresRefresh {
+				indexer.RunFullScan()
+			}
 
-		indexedEntries, err := getIndexedEntries(con)
-		if err != nil {
-			return fmt.Errorf("syncer.orchestrateSync -> data.GetIndexedEntries() %w", err)
+			startTime := time.Now()
+
+			con, err := db.CreateConnection()
+			if err != nil {
+				return fmt.Errorf("syncer.orchestrateSync() -> db.CreateConnection() %w", err)
+			}
+			defer func(con *sql.DB) {
+				err = db.CloseConnection(con)
+				if err != nil {
+					slog.Error("failed to close db connection", "call", "db.CloseConnection()", "err", err)
+				}
+			}(con)
+
+			indexedEntries, err := getIndexedEntries(con)
+			if err != nil {
+				return fmt.Errorf("syncer.orchestrateSync -> data.GetIndexedEntries() %w", err)
+			}
+
+			syncDetails := syncCollection{}
+			startSync(config.Details.SyncPath, indexedEntries, &syncDetails)
+			indexedEntries = nil
+			elapsed := time.Since(startTime)
+			slog.Info(fmt.Sprintf("Scan duration for %s: %s\n", config.Details.SyncPath, elapsed))
+
+			updateAfterSync(&syncDetails, con)
+			syncDetails = syncCollection{}
+			runtime.GC()
+			debug.FreeOSMemory()
+
+			time.Sleep(time.Duration(config.Details.WaitBetweenSyncs) * time.Second)
 		}
-
-		syncDetails := syncCollection{}
-		startSync(config.Details.SyncPath, indexedEntries, &syncDetails)
-		indexedEntries = nil
-		elapsed := time.Since(startTime)
-		slog.Debug(fmt.Sprintf("Scan duration for %s: %s\n", config.Details.SyncPath, elapsed))
-
-		updateAfterSync(&syncDetails, con)
-		syncDetails = syncCollection{}
-		runtime.GC()
-		debug.FreeOSMemory()
-
-		time.Sleep(time.Duration(config.Details.WaitBetweenSyncs) * time.Second)
 	}
-	return nil
 }
