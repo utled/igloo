@@ -21,12 +21,18 @@ type readJob struct {
 
 func readWorker(readJobs <-chan readJob, batchJobs chan<- *EntryCollection, wg *sync.WaitGroup) {
 	defer wg.Done()
+	counter := 0
 	for job := range readJobs {
 		readEntry(batchJobs, job.path, job.stat, false)
+		counter++
+		if counter == 10 {
+			time.Sleep(2 * time.Millisecond)
+			counter = 0
+		}
 	}
 }
 
-// readEntry reads the entry details from Stat, collects and reads Stat_t 
+// readEntry reads the entry details from Stat, collects and reads Stat_t
 // and reads the file contents for the filetypes defined in the config file
 // with the details collected it sends the data through the batchJobs channel to be batched before writing to DB.
 func readEntry(batchJobs chan<- *EntryCollection, path string, stat *os.FileInfo, isRoot bool) {

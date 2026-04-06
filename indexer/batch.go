@@ -2,8 +2,10 @@ package indexer
 
 import (
 	"database/sql"
+	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 // batchWorker groups entries for indexing into groups with a size defined by const batchSize and sends the batches to the db write function in a new goroutine
@@ -21,10 +23,13 @@ func batchWorker(batchJobs <-chan *EntryCollection, countChan chan<- int, batchS
 		if batchCount == batchSize {
 			writeWG.Add(1)
 			go func(batchedEntries []*EntryCollection) {
+				startTime := time.Now()
 				err := WriteFullEntries(con, batchedEntries, writeWG)
 				if err != nil {
 					slog.Error("on looped batch", "call", "data.WriteFullEntries()", "err", err)
 				}
+				elapsed := time.Since(startTime)
+				slog.Debug(fmt.Sprintf("DB write for full batch of size %d in %s", batchSize, elapsed))
 			}(batchedEntries)
 			countChan <- batchCount
 			batchedEntries = nil
@@ -33,10 +38,13 @@ func batchWorker(batchJobs <-chan *EntryCollection, countChan chan<- int, batchS
 	}
 	writeWG.Add(1)
 	go func(batchedEntries []*EntryCollection) {
+		startTime := time.Now()
 		err := WriteFullEntries(con, batchedEntries, writeWG)
 		if err != nil {
 			slog.Error("on final batch", "call", "data.WriteFullEntries()", "err", err)
 		}
+		elapsed := time.Since(startTime)
+		slog.Debug(fmt.Sprintf("DB write for partial batch of size %d in %s", len(batchedEntries), elapsed))
 	}(batchedEntries)
 	countChan <- batchCount
 }

@@ -9,6 +9,7 @@ import (
 	"igloo/logger"
 	"igloo/notify"
 	"log/slog"
+	"math/rand/v2"
 	"os"
 	"runtime"
 	"runtime/debug"
@@ -17,17 +18,17 @@ import (
 )
 
 const (
-	readWorkers        = 4
-	batchWorkers       = 2
-	readJobBufferSize  = 8
-	batchJobBufferSize = 3000
-	batchSize          = 20000
+	readWorkers        = 3
+	batchWorkers       = 1
+	readJobBufferSize  = 10
+	batchJobBufferSize = 100
+	batchSize          = 10000
 )
 
-// StartFullScan is the entry point for the full file system indexer.
+// RunFullScan is the entry point for the full file system indexer.
 // It triggers a fresh read of the config file, triggers an update of the log level according to the config
 // and orchestrates the resources (channels and waitgroups) and triggers the goroutines for executing the indexing process.
-func StartFullScan() error {
+func RunFullScan() error {
 	start := time.Now()
 
 	err := config.Read()
@@ -82,11 +83,13 @@ func StartFullScan() error {
 	collectorWorkers := 1 + readWorkers
 	collectorWG.Add(collectorWorkers)
 
+	go traverseDirectory(syncPath, readJobs, &collectorWG)
+
 	for i := 0; i < readWorkers; i += 1 {
 		go readWorker(readJobs, batchJobs, &collectorWG)
+		jitter := time.Duration(rand.IntN(10) * int(time.Millisecond))
+		time.Sleep(5 * time.Millisecond + jitter)
 	}
-
-	go traverseDirectory(syncPath, readJobs, &collectorWG)
 
 	collectorWG.Wait()
 	close(batchJobs)
@@ -98,7 +101,7 @@ func StartFullScan() error {
 	end := time.Now()
 	elapsed := end.Sub(start)
 
-	slog.Debug(fmt.Sprintf("full scan of %d entries in %s", indexCount, elapsed))
+	slog.Info(fmt.Sprintf("full scan of %d entries in %s", indexCount, elapsed))
 	notify.Send(fmt.Sprintf("Full file system scan completed\n%d entries have been indexed\nduration: %s", indexCount, elapsed), false)
 
 	runtime.GC()

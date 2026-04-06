@@ -44,6 +44,7 @@ func traverseDirectory(
 
 		readJobs <- readJob{path: path, stat: &entryStat}
 
+
 		return nil
 	})
 	if err != nil {
