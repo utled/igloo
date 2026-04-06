@@ -37,34 +37,21 @@ func getOngoingProcessDetails(homeDir string) (ongoingProcessDetails, error) {
 	return details, nil
 }
 
-func checkSetupStatus(homeDir string) (needsSetup bool, err error) {
-	servicePath := filepath.Join(homeDir, ".igloo")
-
-	var relevantPaths []string
-	relevantPaths = append(relevantPaths, servicePath)
-	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "log_archive"))
-	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "tmp"))
-	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.db"))
-	relevantPaths = append(relevantPaths, filepath.Join(servicePath, "igloo.conf"))
-	for _, path := range relevantPaths {
-		if _, err := os.Lstat(path); os.IsNotExist(err) {
-			needsSetup = true
-			return needsSetup, nil
-		}
+func checkIndexCount() (indexCount int, err error) {
+	con, err := db.CreateConnection()
+	if err != nil {
+		return indexCount, err
 	}
 
-	return needsSetup, nil
+	query := `select count(*) from entries;`
+	response := con.QueryRow(query)
+	response.Scan(&indexCount)
+
+	return indexCount, nil
 }
 
 func runSetup(homeDir string) error {
 	servicePath := filepath.Join(homeDir, ".igloo")
-	needsSetup, err := checkSetupStatus(homeDir)
-	if err != nil {
-		return err
-	}
-	if !needsSetup {
-		return nil
-	}
 
 	if _, err := os.Lstat(servicePath); os.IsNotExist(err) {
 		os.MkdirAll(servicePath, os.ModePerm)
@@ -76,6 +63,9 @@ func runSetup(homeDir string) error {
 		return nil
 	}
 
+	if _, err := os.Lstat(filepath.Join(servicePath, "log_archive")); os.IsNotExist(err) {
+		os.MkdirAll(filepath.Join(servicePath, "log_archive"), os.ModePerm)
+	}
 	if _, err := os.Lstat(filepath.Join(servicePath, "tmp")); os.IsNotExist(err) {
 		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
 	}
@@ -94,6 +84,7 @@ func main() {
 	start := flag.Bool("start", false, "starts an initial scan of the whole file system (runs setup steps if needed)")
 	refresh := flag.Bool("refresh", false, "sends SIGUSR1 to any ongoing sync process to run a full index refresh before resuming sync")
 	stop := flag.Bool("stop", false, "(gracefully) terminates any ongoing sync process")
+	test := flag.Bool("test", false, "run some code")
 
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -116,13 +107,32 @@ func main() {
 		case *start:
 			if details.isOngoing {
 				fmt.Println("an instance of igloo is already running. call 'igloo --stop' to terminate the process")
-				return
+				os.Exit(0)
 			}
-			logger.Initialize(homeDir)
-			err := indexer.StartFullScan()
+
+			err = runSetup(homeDir)
 			if err != nil {
 				panic(err)
 			}
+
+			indexCount, err := checkIndexCount()
+			if err != nil {
+				panic(err)
+			}
+
+			logger.Initialize(homeDir)
+			err = config.Read()
+			if err != nil {
+				panic(err)
+			}
+
+			if indexCount <= 0 {
+				err := indexer.RunFullScan()
+				if err != nil {
+					panic(err)
+				}
+			}
+
 			syncer.StartIndexSync(homeDir)
 		case *refresh:
 			if details.isOngoing {
@@ -138,6 +148,8 @@ func main() {
 				fmt.Println("no ongoing igloo process found")
 				os.Exit(0)
 			}
+		case *test:
+			// Do something
 		default:
 			fmt.Println("unknown command. available commands via 'igloo --help'")
 			os.Exit(0)

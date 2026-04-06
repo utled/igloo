@@ -20,6 +20,8 @@ var excludedEntries = []string{
 	"dev",
 	"sys",
 	"proc",
+	"run",
+	"tmp",
 	".snapshots",
 	".venv",
 	".cargo",
