@@ -28,11 +28,12 @@ func batchWorker(batchJobs <-chan *EntryCollection, countChan chan<- int, batchS
 				if err != nil {
 					slog.Error("on looped batch", "call", "data.WriteFullEntries()", "err", err)
 				}
+				batchedEntries = nil
 				elapsed := time.Since(startTime)
 				slog.Debug(fmt.Sprintf("DB write for full batch of size %d in %s", batchSize, elapsed))
 			}(batchedEntries)
 			countChan <- batchCount
-			batchedEntries = nil
+			batchedEntries = make([]*EntryCollection, 0, batchSize)
 			batchCount = 0
 		}
 	}
@@ -43,8 +44,10 @@ func batchWorker(batchJobs <-chan *EntryCollection, countChan chan<- int, batchS
 		if err != nil {
 			slog.Error("on final batch", "call", "data.WriteFullEntries()", "err", err)
 		}
+		batchedEntries = nil
 		elapsed := time.Since(startTime)
 		slog.Debug(fmt.Sprintf("DB write for partial batch of size %d in %s", len(batchedEntries), elapsed))
 	}(batchedEntries)
+	batchedEntries = nil
 	countChan <- batchCount
 }
