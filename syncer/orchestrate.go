@@ -190,8 +190,6 @@ func orchestrateSync(endSyncChan <-chan struct{}, syncCompletedChan chan<- struc
 			syncDetails = syncCollection{}
 			runtime.GC()
 			debug.FreeOSMemory()
-
-			time.Sleep(time.Duration(config.Details.WaitBetweenSyncs) * time.Second)
 		}
 	}
 }
