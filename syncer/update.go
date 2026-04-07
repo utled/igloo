@@ -34,6 +34,7 @@ func updateAfterSync(syncDetails *syncCollection, con *sql.DB) {
 	if countOfUpdatesWOContent > 0 {
 		updateEntriesWithoutContent(con, syncDetails.updatesWOContent)
 	}
+	syncDetails = nil
 	elapsed := time.Since(updateDBStart)
 	slog.Info(fmt.Sprintf("Updates to DB took: %s", elapsed), "call", "syncer.updateAfterSync()")
 }
