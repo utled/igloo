@@ -93,17 +93,24 @@ type entryHeader struct {
 // getIndexedEntries fetches all indexed entries from db with the relevant details for the sync process to identify changes on the entries
 // dev_id + inode + path are combined as the primary key/unique identifier of a file system entry
 func getIndexedEntries(con *sql.DB) (indexedEntries map[string]entryHeader, err error) {
-	indexedEntries = make(map[string]entryHeader)
-	var query string
-	var response *sql.Rows
-	query = `select dev_id, inode, path, modification_time, metadata_change_time 
+	countQuery := `select count(*) from entries;`
+	var indexCount int
+	row := con.QueryRow(countQuery)
+	row.Scan(&indexCount)
+
+	query := `select dev_id, inode, path, modification_time, metadata_change_time 
 				from entries
 				order by inode;`
-	response, err = con.Query(query)
+	response, err := con.Query(query)
 	if err != nil {
 		return indexedEntries, fmt.Errorf("syncer.getIndexedEntries() -> con.Query() %w", err)
 	}
-
+	
+	if indexCount > 0 {
+		indexedEntries = make(map[string]entryHeader, indexCount)
+	} else {
+		return indexedEntries, fmt.Errorf("syncer.getIndexedEntries() -> indexCount > 0 %w", err)
+	}
 	for response.Next() {
 		var details entryHeader
 		err = response.Scan(

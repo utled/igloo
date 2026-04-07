@@ -22,7 +22,7 @@ const (
 	batchWorkers       = 1
 	readJobBufferSize  = 10
 	batchJobBufferSize = 100
-	batchSize          = 10000
+	batchSize          = 10_000
 )
 
 // RunFullScan is the entry point for the full file system indexer.
