@@ -15,6 +15,18 @@ import (
 	"igloo/config"
 )
 
+func checkIfExcluded(entryPath, entryName string) (isExcluded bool) {
+	isHidden := (entryName[0] == '.' && !slices.Contains(config.Details.HiddenEntriesToInclude, entryPath))
+	isExcludedEntry := slices.Contains(config.Details.ExcludedEntries, entryPath)
+	isExcludedEntryName := slices.Contains(config.Details.ExcludedEntryNames, entryName)
+
+	if isHidden || isExcludedEntry || isExcludedEntryName {
+		isExcluded = true
+	}
+
+	return isExcluded
+}
+
 func scanWorker(scanJobs <-chan entryHeader, readJobs chan<- syncJob, indexedEntries map[string]entryHeader, wg *sync.WaitGroup) {
 	defer wg.Done()
 	counter := 0
@@ -47,9 +59,7 @@ func scanUpdatedDir(readJobs chan<- syncJob, dirPath string, indexedEntries map[
 			return fmt.Errorf("syncer.scanUpdatedDir() -> os.Lstat() for path %s %w", filePath, err)
 		}
 
-		isDir := entryStat.IsDir()
-
-		if isDir && slices.Contains(config.Details.ExcludedEntries, filepath.Base(filePath)) {
+		if checkIfExcluded(dirPath, entry.Name()) {
 			continue
 		}
 
@@ -59,7 +69,7 @@ func scanUpdatedDir(readJobs chan<- syncJob, dirPath string, indexedEntries map[
 
 		indexedEntry, isIndexed := indexedEntries[uniqueKey]
 		isContentChange := false
-		if !isDir {
+		if entry.IsDir() {
 			if !isIndexed || entryMtim.Equal(indexedEntry.modificationTime) {
 				isContentChange = true
 			}
@@ -109,8 +119,12 @@ func traverseNewDir(
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(config.Details.ExcludedEntries, filepath.Base(path)) {
-			return filepath.SkipDir
+		if checkIfExcluded(path, d.Name()) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			} else {
+				return nil
+			}
 		}
 
 		entryStat, err := os.Lstat(path)
@@ -171,7 +185,11 @@ func traverseDirectories(
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(config.Details.ExcludedEntries, filepath.Base(path)) {
+		if !d.IsDir() {
+			return nil
+		}
+
+		if checkIfExcluded(path, d.Name()) {
 			return filepath.SkipDir
 		}
 
@@ -183,22 +201,20 @@ func traverseDirectories(
 
 		statT := entryStat.Sys().(*syscall.Stat_t)
 		uniqueKey := strconv.FormatUint(statT.Dev, 10) + strconv.FormatUint(statT.Ino, 10) + path
-		if d.IsDir() {
-			if indexedEntry, isIndexed := indexedEntries[uniqueKey]; !isIndexed {
-				newDirJobs <- path
-				return filepath.SkipDir
-			} else {
-				mTim := time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
-				cTim := time.Unix(statT.Ctim.Sec, statT.Ctim.Nsec)
-				if !indexedEntry.modificationTime.Equal(mTim) || !indexedEntry.metaDataChangeTime.Equal(cTim) {
-					scanJobs <- indexedEntry
-					readJobs <- syncJob{
-						path:            path,
-						isIndexed:       true,
-						isContentChange: false,
-						stat:            &entryStat,
-						statT:           *statT,
-					}
+		if indexedEntry, isIndexed := indexedEntries[uniqueKey]; !isIndexed {
+			newDirJobs <- path
+			return filepath.SkipDir
+		} else {
+			mTim := time.Unix(statT.Mtim.Sec, statT.Mtim.Nsec)
+			cTim := time.Unix(statT.Ctim.Sec, statT.Ctim.Nsec)
+			if !indexedEntry.modificationTime.Equal(mTim) || !indexedEntry.metaDataChangeTime.Equal(cTim) {
+				scanJobs <- indexedEntry
+				readJobs <- syncJob{
+					path:            path,
+					isIndexed:       true,
+					isContentChange: false,
+					stat:            &entryStat,
+					statT:           *statT,
 				}
 			}
 		}

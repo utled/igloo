@@ -11,129 +11,116 @@ import (
 	"time"
 )
 
-var excludedEntries = []string{
-	"mnt",
-	"boot",
-	"etc",
-	"root",
-	"bin",
-	"dev",
-	"sys",
-	"proc",
-	"run",
-	"tmp",
-	".snapshots",
-	".venv",
-	".cargo",
-	".rustup",
-	".git",
-	".cache",
-	".idea",
+var excludedFromRoot = []string{
+	"/mnt",
+	"/boot",
+	"/etc",
+	"/root",
+	"/bin",
+	"/sbin",
+	"/dev",
+	"/sys",
+	"/proc",
 }
 
-var entriesToKeep = []string{
-	".igloo",
-	".local",
-	".config",
+var excludedEntryNames = []string{
+	"run",
+	"tmp",
+	"cache",
 }
 
 var contentFileTypes = []string{
 	".txt",
+	".text",
 	".md",
+	".csv",
+	".doc",
+	".docx",
+	".odt",
+
 	".go",
 	".py",
+	".ipynb",
+	".sql",
 	".c",
 	".cpp",
-	".c++",
+	".h",
 	".cs",
 	".rs",
 	".kt",
 	".ktm",
 	".kts",
 	".java",
+	".odin",
+	".zig",
 	".sh",
-	".csv",
-	".css",
-	".lua",
-	".dockerfile",
-	".json",
-	".jsonc",
-	".conf",
-	".js",
-	".ipynb",
-	".sql",
 	".bash",
+	".lua",
+	".js",
+	".ts",
+
+	".conf",
 	".toml",
 	".yaml",
 	".yml",
+	".json",
+	".jsonc",
 	".xml",
-	".ts",
-	".doc",
-	".docx",
-	".docm",
-	".xlxs",
-	".xlxm",
-	".ods",
-	".odt",
-}
-
-func composeExclusions(homePath string) (exclusions []string, err error) {
-	entries, err := os.ReadDir(homePath)
-	if err != nil {
-		return exclusions, fmt.Errorf("config.composeExclusions() -> os.ReadDir() %w", err)
-	}
-
-	for _, entry := range entries {
-		if entry.Name()[0] == '.' && !slices.Contains(entriesToKeep, entry.Name()) {
-			exclusions = append(exclusions, entry.Name())
-		}
-	}
-
-	exclusions = append(exclusions, excludedEntries...)
-
-	return exclusions, nil
+	".dockerfile",
+	".html",
+	".css",
 }
 
 var Details ConfigCollection
 
 type ConfigCollection struct {
-	SyncPath         string   `json:"SyncPath"`         // defaults to system root directory
-	LogLevel         string   `json:"LogLevel"`         // default to "warning"
-	ExcludedEntries  []string `json:"ExcludedEntries"`  // what files and directories are excluded from being indexed
-	ContentFileTypes []string `json:"ContentFileTypes"` // what file types does the index capture the contents for to allow content based searches of the index
-	LastModification time.Time
+	SyncPath               string   `json:"SyncPath"`               // defaults to system root directory
+	LogLevel               string   `json:"LogLevel"`               // defaults to "warning"
+	ExcludedEntries        []string `json:"ExcludedPaths"`          // specific paths to exclude from being indexed
+	ExcludedEntryNames     []string `json:"ExcludedEntryNames"`     // entry names (not full paths) to exclude from being indexed regardless of where found
+	HiddenEntriesToInclude []string `json:"HiddenEntriesToInclude"` // all hidden entries are excluded by program logic except for specific paths defined here
+	ContentFileTypes       []string `json:"ContentFileTypes"`       // what file types does the index capture the contents for to allow content based searches of the index
+	LastModification       time.Time
+}
+
+func composeHiddenEntriesToInclude(homePath string) []string {
+	hiddenEntriesToInclude := []string{
+		filepath.Join(homePath, ".igloo"),
+		filepath.Join(homePath, ".local"),
+		filepath.Join(homePath, ".config"),
+	}
+
+	return hiddenEntriesToInclude
 }
 
 func Initialize(homePath string) error {
 	servicePath := filepath.Join(homePath, ".igloo")
 	configFilepath := filepath.Join(servicePath, "igloo.conf")
-	if _, err := os.Stat(configFilepath); err != nil {
-		exclusions, err := composeExclusions(homePath)
-		if err != nil {
-			return err
-		}
 
-		defaultConfig := ConfigCollection{
-			SyncPath:         "/",
-			LogLevel:         "warning",
-			ExcludedEntries:  exclusions,
-			ContentFileTypes: contentFileTypes,
-		}
+	hiddenEntriesToInclude := composeHiddenEntriesToInclude(homePath)
 
-		defaultConfigJSON, _ := json.MarshalIndent(defaultConfig, "", "  ")
-
-		file, err := os.Create(configFilepath)
-		if err != nil {
-			return fmt.Errorf("failed to create config file:\n%v", err)
-		}
-		defer file.Close()
-
-		_, err = file.WriteString(string(defaultConfigJSON))
-		if err != nil {
-			return fmt.Errorf("failed to write to config file\n%v", err)
-		}
-		file.Sync()
+	defaultConfig := ConfigCollection{
+		SyncPath:               "/",
+		LogLevel:               "warning",
+		ExcludedEntries:        excludedFromRoot,
+		ExcludedEntryNames:     excludedEntryNames,
+		HiddenEntriesToInclude: hiddenEntriesToInclude,
+		ContentFileTypes:       contentFileTypes,
 	}
+
+	defaultConfigJSON, _ := json.MarshalIndent(defaultConfig, "", "  ")
+
+	file, err := os.Create(configFilepath)
+	if err != nil {
+		return fmt.Errorf("failed to create config file:\n%v", err)
+	}
+	defer file.Close()
+
+	_, err = file.WriteString(string(defaultConfigJSON))
+	if err != nil {
+		return fmt.Errorf("failed to write to config file\n%v", err)
+	}
+	file.Sync()
 
 	return nil
 }
@@ -159,11 +146,18 @@ func readNewConfig() (newConfig ConfigCollection, err error) {
 	}
 	newConfig.LastModification = fileStat.ModTime()
 
-	for _, exclusionEntry := range excludedEntries {
+	for _, exclusionEntry := range excludedFromRoot {
 		if !slices.Contains(newConfig.ExcludedEntries, exclusionEntry) {
 			newConfig.ExcludedEntries = append(newConfig.ExcludedEntries, exclusionEntry)
 		}
 	}
+
+	for _, exclusionEntryName := range excludedEntryNames {
+		if !slices.Contains(newConfig.ExcludedEntryNames, exclusionEntryName) {
+			newConfig.ExcludedEntryNames = append(newConfig.ExcludedEntryNames, exclusionEntryName)
+		}
+	}
+
 	return newConfig, nil
 }
 
@@ -184,7 +178,10 @@ func CheckUpdate() (isChanged bool, err error) {
 	}
 
 	if newConfig.LastModification.After(Details.LastModification) {
-		if strings.Compare(Details.SyncPath, newConfig.SyncPath) != 0 || !slices.Equal(Details.ExcludedEntries, newConfig.ExcludedEntries) || !slices.Equal(Details.ContentFileTypes, newConfig.ContentFileTypes) {
+		if strings.Compare(Details.SyncPath, newConfig.SyncPath) != 0 ||
+			!slices.Equal(Details.ExcludedEntries, newConfig.ExcludedEntries) ||
+			!slices.Equal(Details.ExcludedEntryNames, newConfig.ExcludedEntryNames) ||
+			!slices.Equal(Details.ContentFileTypes, newConfig.ContentFileTypes) {
 			isChanged = true
 		}
 		Details = newConfig

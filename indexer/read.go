@@ -44,7 +44,9 @@ func readEntry(batchJobs chan<- *EntryCollection, path string, stat *os.FileInfo
 		if entryStat.Mode().Type()&os.ModeSymlink == 0 && slices.Contains(config.Details.ContentFileTypes, filepath.Ext(path)) {
 			contents, err := os.ReadFile(path)
 			if err != nil {
-				slog.Error("failed to read file", "call", "os.ReadFile()", "err", err)
+				if !os.IsPermission(err) {
+					slog.Error("failed to read file", "call", "os.ReadFile()", "err", err)
+				}
 				return
 			}
 			lineCountTotal := bytes.Count(contents, []byte("\n"))
@@ -75,7 +77,7 @@ func readEntry(batchJobs chan<- *EntryCollection, path string, stat *os.FileInfo
 	if !isRoot {
 		entry.ParentDirID = filepath.Dir(path)
 	}
-	entry.Name = filepath.Base(path)
+	entry.Name = entryStat.Name()
 	entry.IsDir = entryStat.IsDir()
 	entry.Size = entryStat.Size()
 

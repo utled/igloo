@@ -38,12 +38,21 @@ func traverseDirectory(
 			return nil
 		}
 
-		if d.IsDir() && slices.Contains(config.Details.ExcludedEntries, filepath.Base(path)) {
-			return filepath.SkipDir
+		entryName := d.Name()
+
+		isHidden := (entryName[0] == '.' && !slices.Contains(config.Details.HiddenEntriesToInclude, path))
+		isExcludedEntry := slices.Contains(config.Details.ExcludedEntries, path)
+		isExcludedEntryName := slices.Contains(config.Details.ExcludedEntryNames, entryName)
+
+		if isHidden || isExcludedEntry || isExcludedEntryName {
+			if d.IsDir() {
+				return filepath.SkipDir
+			} else {
+				return nil
+			}
 		}
 
 		readJobs <- readJob{path: path, stat: &entryStat}
-
 
 		return nil
 	})

@@ -65,7 +65,10 @@ func readEntry(syncJob syncJob, syncDetails *syncCollection) {
 		if slices.Contains(config.Details.ContentFileTypes, filepath.Ext(syncJob.path)) && syncJob.isContentChange {
 			contents, err := os.ReadFile(syncJob.path)
 			if err != nil {
-				slog.Error(fmt.Sprintf("failed to read file %s", syncJob.path), "call", "os.ReadFile()", "err", err)
+				if !os.IsPermission(err) {
+					slog.Error(fmt.Sprintf("failed to read file %s", syncJob.path), "call", "os.ReadFile()", "err", err)
+				}
+				return
 			}
 			lineCountTotal := bytes.Count(contents, []byte("\n"))
 			blankLines := bytes.Count(contents, []byte("\n\n"))

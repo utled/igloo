@@ -5,6 +5,7 @@
 - [x] set up log file monitoring/archiving
 - [x] set up config update monitoring
 - [] explore options for defining file types for content reading
-- [] explore options for defining excluded objects
+- [x] explore options for defining excluded objects
+- [] could replace config updates that trigger refresh for the deletion process checking the config. weigh pros vs cons 
 - [] explore fanotify to allow for less resource intensive syncing process
 - [x] fine tune worker pool- & channel buffer sizes 
