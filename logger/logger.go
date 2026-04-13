@@ -75,21 +75,22 @@ func CheckUpdateLogLevel() {
 	switch requestedLevel {
 	case "debug":
 		if logDetails.loglevel.Level() != slog.LevelDebug {
-			slog.Debug("Switching to DEBUG mode")
+			slog.Info("Switching to DEBUG mode")
 			logDetails.loglevel.Set(slog.LevelDebug)
 		}
 	case "info":
 		if logDetails.loglevel.Level() != slog.LevelInfo {
+			slog.Info("Switching to INFO mode")
 			logDetails.loglevel.Set(slog.LevelInfo)
 		}
 	case "warning":
 		if logDetails.loglevel.Level() != slog.LevelWarn {
-			slog.Warn("Switching to WARNING mode")
+			slog.Info("Switching to WARNING mode")
 			logDetails.loglevel.Set(slog.LevelWarn)
 		}
 	case "error":
 		if logDetails.loglevel.Level() != slog.LevelError {
-			slog.Error("Switching to ERROR mode")
+			slog.Info("Switching to ERROR mode")
 			logDetails.loglevel.Set(slog.LevelError)
 		}
 	}
