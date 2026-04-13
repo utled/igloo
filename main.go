@@ -57,8 +57,8 @@ func runSetup(homeDir string) error {
 		os.MkdirAll(servicePath, os.ModePerm)
 		os.MkdirAll(filepath.Join(servicePath, "log_archive"), os.ModePerm)
 		os.MkdirAll(filepath.Join(servicePath, "tmp"), os.ModePerm)
-		db.InitializeDB(servicePath)
-		config.Initialize(homeDir)
+		if err = db.InitializeDB(servicePath); err != nil { return err }
+		if err = config.Initialize(homeDir); err != nil { return err }
 
 		return nil
 	}
